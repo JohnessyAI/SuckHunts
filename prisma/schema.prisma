@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Game Catalog ───
+
+model Game {
+  id               String    @id @default(uuid())
+  slug             String    @unique
+  name             String
+  provider         String
+  imageUrl         String?
+  rtp              Decimal?
+  volatility       String?
+  maxWin           String?
+  betRange         String?
+  releaseDate      DateTime?
+  features         String[]
+  gridLayout       String?
+  source           String    @default("wagerrace") // wagerrace | bigwinboard | manual
+  bwbUrl           String?
+  bwbScore         Decimal?
+  timesUsedInHunts Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model ScrapeLog {
+  id          String    @id @default(uuid())
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  status      String    @default("running") // running | completed | failed
+  gamesFound  Int       @default(0)
+  gamesAdded  Int       @default(0)
+  gamesUpdated Int      @default(0)
+  errors      Json?
+  durationMs  Int?
+}
+
+// ─── Users & Auth ───
+
+model User {
+  id                 String           @id @default(uuid())
+  name               String
+  email              String           @unique
+  image              String?
+  isAdmin            Boolean          @default(false)
+  stripeCustomerId   String?          @unique
+  stripePriceId      String?
+  subscriptionTier   String           @default("free") // free | basic | pro
+  subscriptionStatus String           @default("inactive") // inactive | trialing | active | canceled | past_due
+  trialEndsAt        DateTime?
+  huntsThisMonth     Int              @default(0)
+  huntsResetAt       DateTime?
+  onboardingDone     Boolean          @default(false)
+  hunts              Hunt[]
+  presets            HuntPreset[]
+  gameStats          GameStat[]
+  overlayProjects    OverlayProject[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+// ─── Hunts ───
+
+model Hunt {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  title       String
+  status      String      @default("preparing") // preparing | live | completed
+  totalCost   Decimal     @default(0)
+  totalWon    Decimal     @default(0)
+  shareSlug   String      @unique
+  startedAt   DateTime?
+  completedAt DateTime?
+  entries     HuntEntry[]
+  createdAt   DateTime    @default(now())
+}
+
+model HuntEntry {
+  id           String   @id @default(uuid())
+  huntId       String
+  hunt         Hunt     @relation(fields: [huntId], references: [id], onDelete: Cascade)
+  gameSlug     String?
+  gameName     String
+  gameImage    String?
+  gameProvider String?
+  betSize      Decimal
+  cost         Decimal
+  result       Decimal?
+  multiplier   Decimal?
+  position     Int
+  status       String   @default("pending") // pending | playing | completed
+  createdAt    DateTime @default(now())
+}
+
+model HuntPreset {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  games     Json     // [{ gameSlug, gameName, gameImage, gameProvider, defaultBet }]
+  createdAt DateTime @default(now())
+}
+
+model GameStat {
+  id                String  @id @default(uuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id])
+  gameSlug          String
+  gameName          String
+  timesPlayed       Int     @default(0)
+  totalSpent        Decimal @default(0)
+  totalWon          Decimal @default(0)
+  biggestWin        Decimal @default(0)
+  biggestMultiplier Decimal @default(0)
+  avgMultiplier     Decimal @default(0)
+
+  @@unique([userId, gameSlug])
+}
+
+// ─── Overlay Editor ───
+
+model OverlayProject {
+  id              String         @id @default(uuid())
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
+  name            String
+  slug            String         @unique
+  activeSceneId   String?
+  activeHuntId    String?
+  kickChannelSlug String?
+  kickChannelId   String?
+  chatBotEnabled  Boolean        @default(false)
+  scenes          OverlayScene[]
+  chatCommands    ChatCommand[]
+  modTokens       ModToken[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model OverlayScene {
+  id           String          @id @default(uuid())
+  projectId    String
+  project      OverlayProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  slug         String
+  width        Int             @default(1920)
+  height       Int             @default(1080)
+  background   String          @default("transparent")
+  transition   String          @default("fade")
+  transitionMs Int             @default(500)
+  position     Int
+  widgets      OverlayWidget[]
+  chatCommands ChatCommand[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([projectId, slug])
+}
+
+model OverlayWidget {
+  id       String       @id @default(uuid())
+  sceneId  String
+  scene    OverlayScene @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  type     String
+  label    String?
+  x        Int          @default(0)
+  y        Int          @default(0)
+  width    Int          @default(400)
+  height   Int          @default(200)
+  rotation Int          @default(0)
+  zIndex   Int          @default(0)
+  visible  Boolean      @default(true)
+  locked   Boolean      @default(false)
+  opacity  Float        @default(1.0)
+  config   Json         @default("{}")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model ChatCommand {
+  id            String         @id @default(uuid())
+  projectId     String
+  project       OverlayProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  command       String
+  action        String         @default("switch_scene")
+  targetSceneId String?
+  targetScene   OverlayScene?  @relation(fields: [targetSceneId], references: [id])
+  allowedRoles  String[]       @default(["broadcaster", "moderator"])
+  cooldownMs    Int            @default(5000)
+  enabled       Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+
+  @@unique([projectId, command])
+}
+
+model ModToken {
+  id          String         @id @default(uuid())
+  projectId   String
+  project     OverlayProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  token       String         @unique
+  label       String
+  permissions String[]       @default(["switch_scene", "update_hunt"])
+  expiresAt   DateTime?
+  createdAt   DateTime       @default(now())
+}
