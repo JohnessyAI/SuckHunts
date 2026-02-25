@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrency, formatMultiplier } from "@/lib/utils/format";
+import { getWidgetType } from "@/lib/overlay/widget-registry";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function c(config: Record<string, unknown>, key: string, fallback: any = undefined): any {
@@ -44,6 +45,49 @@ export default function WidgetRenderer({
   huntData,
   isEditor,
 }: WidgetRendererProps) {
+  const def = getWidgetType(type);
+  const refW = def?.defaultWidth ?? width;
+  const refH = def?.defaultHeight ?? height;
+  const needsScale = width !== refW || height !== refH;
+
+  const content = (
+    <WidgetContent
+      type={type}
+      config={config}
+      huntData={huntData}
+      isEditor={isEditor}
+    />
+  );
+
+  if (!needsScale) return <div style={{ width, height }}>{content}</div>;
+
+  return (
+    <div style={{ width, height, overflow: "hidden" }}>
+      <div
+        style={{
+          width: refW,
+          height: refH,
+          transform: `scale(${width / refW}, ${height / refH})`,
+          transformOrigin: "top left",
+        }}
+      >
+        {content}
+      </div>
+    </div>
+  );
+}
+
+function WidgetContent({
+  type,
+  config,
+  huntData,
+  isEditor,
+}: {
+  type: string;
+  config: Record<string, unknown>;
+  huntData?: HuntData | null;
+  isEditor?: boolean;
+}) {
   const entries = huntData?.entries ?? [];
   const playing = entries.find((e) => e.status === "playing");
   const completed = entries.filter((e) => e.status === "completed");

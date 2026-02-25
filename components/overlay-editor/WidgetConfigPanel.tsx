@@ -15,20 +15,26 @@ export default function WidgetConfigPanel({
   onConfigChange,
 }: WidgetConfigPanelProps) {
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadError(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: formData });
+      const data = await res.json();
       if (res.ok) {
-        const { url } = await res.json();
-        onConfigChange("url", url);
+        onConfigChange("url", data.url);
+      } else {
+        setUploadError(data.error || "Upload failed");
       }
+    } catch {
+      setUploadError("Network error — could not upload");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -76,6 +82,9 @@ export default function WidgetConfigPanel({
             className="hidden"
             onChange={handleImageUpload}
           />
+          {uploadError && (
+            <p className="text-[10px] text-red-400">{uploadError}</p>
+          )}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">
               Or paste URL

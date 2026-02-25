@@ -32,9 +32,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const blob = await put(`overlays/${Date.now()}-${file.name}`, file, {
-    access: "public",
-  });
+  try {
+    const blob = await put(`overlays/${Date.now()}-${file.name}`, file, {
+      access: "public",
+    });
 
-  return NextResponse.json({ url: blob.url });
+    return NextResponse.json({ url: blob.url });
+  } catch (err) {
+    console.error("Upload failed:", err);
+    return NextResponse.json(
+      { error: "Upload failed. Check that BLOB_READ_WRITE_TOKEN is set." },
+      { status: 500 }
+    );
+  }
 }
