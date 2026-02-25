@@ -3,19 +3,14 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 // TODO: Remove dev bypass before production
-function devBypass(req: NextRequest) {
-  return NextResponse.next();
+export default function middleware(req: NextRequest) {
+  if (process.env.DEV_BYPASS_AUTH === "true") {
+    return NextResponse.next();
+  }
+  return withAuth({
+    pages: { signIn: "/login" },
+  })(req as any, {} as any);
 }
-
-const authMiddleware = withAuth({
-  pages: {
-    signIn: "/login",
-  },
-});
-
-export default process.env.NODE_ENV === "development"
-  ? devBypass
-  : authMiddleware;
 
 export const config = {
   matcher: [

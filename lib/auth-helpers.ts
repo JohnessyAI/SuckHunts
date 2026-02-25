@@ -17,7 +17,7 @@ const DEV_SESSION = {
 
 export async function getAuthSession() {
   // TODO: Remove dev bypass before production
-  if (process.env.NODE_ENV === "development") {
+  if (process.env.DEV_BYPASS_AUTH === "true") {
     return DEV_SESSION;
   }
   return getServerSession(authOptions);

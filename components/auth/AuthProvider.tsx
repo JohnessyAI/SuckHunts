@@ -22,7 +22,7 @@ export default function AuthProvider({
   children: React.ReactNode;
 }) {
   // TODO: Remove dev bypass before production
-  const isDev = process.env.NODE_ENV === "development";
+  const isDev = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 
   return (
     <SessionProvider session={isDev ? devSession : undefined}>
