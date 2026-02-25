@@ -1,10 +1,21 @@
 import { withAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-export default withAuth({
+// TODO: Remove dev bypass before production
+function devBypass(req: NextRequest) {
+  return NextResponse.next();
+}
+
+const authMiddleware = withAuth({
   pages: {
     signIn: "/login",
   },
 });
+
+export default process.env.NODE_ENV === "development"
+  ? devBypass
+  : authMiddleware;
 
 export const config = {
   matcher: [
