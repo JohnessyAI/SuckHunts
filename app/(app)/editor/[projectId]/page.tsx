@@ -9,15 +9,15 @@ import {
   Trash2,
   Copy,
   Eye,
-  Save,
   Layers,
-  GripVertical,
   Lock,
   Unlock,
   EyeOff,
 } from "lucide-react";
 import { WIDGET_TYPES } from "@/lib/overlay/widget-registry";
 import WidgetRenderer from "@/components/overlay-renderer/WidgetRenderer";
+import WidgetConfigPanel from "@/components/overlay-editor/WidgetConfigPanel";
+import { MOCK_HUNT_DATA } from "@/lib/overlay/mock-hunt-data";
 
 interface Widget {
   id: string;
@@ -55,6 +55,16 @@ interface Project {
   scenes: Scene[];
 }
 
+type ResizeEdge =
+  | "top"
+  | "bottom"
+  | "left"
+  | "right"
+  | "top-left"
+  | "top-right"
+  | "bottom-left"
+  | "bottom-right";
+
 export default function OverlayEditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -73,8 +83,11 @@ export default function OverlayEditorPage() {
   } | null>(null);
   const [resizing, setResizing] = useState<{
     widgetId: string;
+    edge: ResizeEdge;
     startX: number;
     startY: number;
+    origX: number;
+    origY: number;
     origW: number;
     origH: number;
   } | null>(null);
@@ -132,32 +145,62 @@ export default function OverlayEditorPage() {
     }
   };
 
-  // Update widget
-  const updateWidget = async (
-    widgetId: string,
-    data: Partial<Widget>
-  ) => {
-    if (!activeSceneId) return;
-    await fetch(
-      `/api/overlays/${projectId}/scenes/${activeSceneId}/widgets/${widgetId}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      }
-    );
-    fetchProject();
-  };
+  // Optimistic update widget — update state locally first, then fire API in background
+  const updateWidget = useCallback(
+    (widgetId: string, data: Partial<Widget>) => {
+      if (!activeSceneId) return;
+
+      // Optimistically update local state
+      setProject((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          scenes: prev.scenes.map((s) =>
+            s.id === activeSceneId
+              ? {
+                  ...s,
+                  widgets: s.widgets.map((w) =>
+                    w.id === widgetId ? { ...w, ...data } : w
+                  ),
+                }
+              : s
+          ),
+        };
+      });
+
+      // Fire API call in background (no await, no fetchProject)
+      fetch(
+        `/api/overlays/${projectId}/scenes/${activeSceneId}/widgets/${widgetId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        }
+      );
+    },
+    [activeSceneId, projectId]
+  );
 
   // Delete widget
   const deleteWidget = async (widgetId: string) => {
     if (!activeSceneId) return;
+    // Optimistic removal
+    setProject((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        scenes: prev.scenes.map((s) =>
+          s.id === activeSceneId
+            ? { ...s, widgets: s.widgets.filter((w) => w.id !== widgetId) }
+            : s
+        ),
+      };
+    });
+    if (selectedWidgetId === widgetId) setSelectedWidgetId(null);
     await fetch(
       `/api/overlays/${projectId}/scenes/${activeSceneId}/widgets/${widgetId}`,
       { method: "DELETE" }
     );
-    if (selectedWidgetId === widgetId) setSelectedWidgetId(null);
-    fetchProject();
   };
 
   // Add scene
@@ -182,7 +225,9 @@ export default function OverlayEditorPage() {
       method: "DELETE",
     });
     if (activeSceneId === sceneId) {
-      setActiveSceneId(project?.scenes.find((s) => s.id !== sceneId)?.id ?? null);
+      setActiveSceneId(
+        project?.scenes.find((s) => s.id !== sceneId)?.id ?? null
+      );
     }
     fetchProject();
   };
@@ -208,13 +253,21 @@ export default function OverlayEditorPage() {
     });
   };
 
-  const handleResizeDown = (e: React.MouseEvent, widget: Widget) => {
+  const handleResizeDown = (
+    e: React.MouseEvent,
+    widget: Widget,
+    edge: ResizeEdge
+  ) => {
     if (widget.locked) return;
     e.stopPropagation();
+    e.preventDefault();
     setResizing({
       widgetId: widget.id,
+      edge,
       startX: e.clientX,
       startY: e.clientY,
+      origX: widget.x,
+      origY: widget.y,
       origW: widget.width,
       origH: widget.height,
     });
@@ -225,7 +278,6 @@ export default function OverlayEditorPage() {
       if (dragging) {
         const dx = (e.clientX - dragging.startX) / scale;
         const dy = (e.clientY - dragging.startY) / scale;
-        // Update locally for smooth dragging
         setProject((prev) => {
           if (!prev) return prev;
           return {
@@ -252,6 +304,8 @@ export default function OverlayEditorPage() {
       if (resizing) {
         const dx = (e.clientX - resizing.startX) / scale;
         const dy = (e.clientY - resizing.startY) / scale;
+        const edge = resizing.edge;
+
         setProject((prev) => {
           if (!prev) return prev;
           return {
@@ -260,15 +314,60 @@ export default function OverlayEditorPage() {
               s.id === activeSceneId
                 ? {
                     ...s,
-                    widgets: s.widgets.map((w) =>
-                      w.id === resizing.widgetId
-                        ? {
-                            ...w,
-                            width: Math.max(50, Math.round(resizing.origW + dx)),
-                            height: Math.max(30, Math.round(resizing.origH + dy)),
-                          }
-                        : w
-                    ),
+                    widgets: s.widgets.map((w) => {
+                      if (w.id !== resizing.widgetId) return w;
+
+                      let newX = resizing.origX;
+                      let newY = resizing.origY;
+                      let newW = resizing.origW;
+                      let newH = resizing.origH;
+
+                      // Horizontal edges
+                      if (
+                        edge === "right" ||
+                        edge === "top-right" ||
+                        edge === "bottom-right"
+                      ) {
+                        newW = Math.max(50, Math.round(resizing.origW + dx));
+                      }
+                      if (
+                        edge === "left" ||
+                        edge === "top-left" ||
+                        edge === "bottom-left"
+                      ) {
+                        const maxDx = resizing.origW - 50;
+                        const clampedDx = Math.min(dx, maxDx);
+                        newX = Math.round(resizing.origX + clampedDx);
+                        newW = Math.max(
+                          50,
+                          Math.round(resizing.origW - clampedDx)
+                        );
+                      }
+
+                      // Vertical edges
+                      if (
+                        edge === "bottom" ||
+                        edge === "bottom-left" ||
+                        edge === "bottom-right"
+                      ) {
+                        newH = Math.max(30, Math.round(resizing.origH + dy));
+                      }
+                      if (
+                        edge === "top" ||
+                        edge === "top-left" ||
+                        edge === "top-right"
+                      ) {
+                        const maxDy = resizing.origH - 30;
+                        const clampedDy = Math.min(dy, maxDy);
+                        newY = Math.round(resizing.origY + clampedDy);
+                        newH = Math.max(
+                          30,
+                          Math.round(resizing.origH - clampedDy)
+                        );
+                      }
+
+                      return { ...w, x: newX, y: newY, width: newW, height: newH };
+                    }),
                   }
                 : s
             ),
@@ -279,16 +378,25 @@ export default function OverlayEditorPage() {
 
     const handleMouseUp = () => {
       if (dragging) {
-        const widget = activeScene?.widgets.find((w) => w.id === dragging.widgetId);
+        const widget = activeScene?.widgets.find(
+          (w) => w.id === dragging.widgetId
+        );
         if (widget) {
           updateWidget(dragging.widgetId, { x: widget.x, y: widget.y });
         }
         setDragging(null);
       }
       if (resizing) {
-        const widget = activeScene?.widgets.find((w) => w.id === resizing.widgetId);
+        const widget = activeScene?.widgets.find(
+          (w) => w.id === resizing.widgetId
+        );
         if (widget) {
-          updateWidget(resizing.widgetId, { width: widget.width, height: widget.height });
+          updateWidget(resizing.widgetId, {
+            x: widget.x,
+            y: widget.y,
+            width: widget.width,
+            height: widget.height,
+          });
         }
         setResizing(null);
       }
@@ -311,6 +419,54 @@ export default function OverlayEditorPage() {
   }
 
   if (!project) return null;
+
+  // Resize handles config
+  const resizeHandles: {
+    edge: ResizeEdge;
+    cursor: string;
+    position: string;
+  }[] = [
+    {
+      edge: "top-left",
+      cursor: "nwse-resize",
+      position: "-top-1 -left-1 w-2.5 h-2.5",
+    },
+    {
+      edge: "top",
+      cursor: "ns-resize",
+      position: "-top-1 left-1/2 -translate-x-1/2 w-6 h-2",
+    },
+    {
+      edge: "top-right",
+      cursor: "nesw-resize",
+      position: "-top-1 -right-1 w-2.5 h-2.5",
+    },
+    {
+      edge: "right",
+      cursor: "ew-resize",
+      position: "top-1/2 -right-1 -translate-y-1/2 w-2 h-6",
+    },
+    {
+      edge: "bottom-right",
+      cursor: "nwse-resize",
+      position: "-bottom-1 -right-1 w-2.5 h-2.5",
+    },
+    {
+      edge: "bottom",
+      cursor: "ns-resize",
+      position: "-bottom-1 left-1/2 -translate-x-1/2 w-6 h-2",
+    },
+    {
+      edge: "bottom-left",
+      cursor: "nesw-resize",
+      position: "-bottom-1 -left-1 w-2.5 h-2.5",
+    },
+    {
+      edge: "left",
+      cursor: "ew-resize",
+      position: "top-1/2 -left-1 -translate-y-1/2 w-2 h-6",
+    },
+  ];
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)]">
@@ -459,7 +615,9 @@ export default function OverlayEditorPage() {
               .map((widget) => (
                 <div
                   key={widget.id}
-                  className={`absolute cursor-move group ${
+                  className={`absolute group ${
+                    widget.locked ? "cursor-default" : "cursor-move"
+                  } ${
                     selectedWidgetId === widget.id
                       ? "ring-2 ring-red-500 ring-offset-0"
                       : "hover:ring-1 hover:ring-white/20"
@@ -482,8 +640,11 @@ export default function OverlayEditorPage() {
                   }}
                 >
                   <div
-                    className="w-full h-full overflow-hidden"
-                    style={{ transform: `scale(${scale})`, transformOrigin: "top left" }}
+                    className="w-full h-full overflow-hidden pointer-events-none"
+                    style={{
+                      transform: `scale(${scale})`,
+                      transformOrigin: "top left",
+                    }}
                   >
                     <div
                       style={{
@@ -496,21 +657,22 @@ export default function OverlayEditorPage() {
                         config={widget.config}
                         width={widget.width}
                         height={widget.height}
+                        huntData={project.activeHuntId ? undefined : MOCK_HUNT_DATA}
                         isEditor
                       />
                     </div>
                   </div>
 
-                  {/* Resize handle */}
-                  {selectedWidgetId === widget.id && !widget.locked && (
-                    <div
-                      className="absolute -bottom-1 -right-1 w-3 h-3 bg-red-500 cursor-se-resize rounded-sm"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        handleResizeDown(e, widget);
-                      }}
-                    />
-                  )}
+                  {/* Resize handles — all edges and corners */}
+                  {selectedWidgetId === widget.id && !widget.locked &&
+                    resizeHandles.map((h) => (
+                      <div
+                        key={h.edge}
+                        className={`absolute ${h.position} bg-red-500 rounded-sm z-50`}
+                        style={{ cursor: h.cursor }}
+                        onMouseDown={(e) => handleResizeDown(e, widget, h.edge)}
+                      />
+                    ))}
 
                   {/* Label */}
                   {selectedWidgetId === widget.id && (
@@ -536,12 +698,16 @@ export default function OverlayEditorPage() {
                   <label className="text-[10px] text-gray-500 uppercase">
                     Type
                   </label>
-                  <p className="text-sm text-white">{selectedWidget.label || selectedWidget.type}</p>
+                  <p className="text-sm text-white">
+                    {selectedWidget.label || selectedWidget.type}
+                  </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-gray-500 uppercase">X</label>
+                    <label className="text-[10px] text-gray-500 uppercase">
+                      X
+                    </label>
                     <input
                       type="number"
                       value={selectedWidget.x}
@@ -554,7 +720,9 @@ export default function OverlayEditorPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-gray-500 uppercase">Y</label>
+                    <label className="text-[10px] text-gray-500 uppercase">
+                      Y
+                    </label>
                     <input
                       type="number"
                       value={selectedWidget.y}
@@ -567,7 +735,9 @@ export default function OverlayEditorPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-gray-500 uppercase">W</label>
+                    <label className="text-[10px] text-gray-500 uppercase">
+                      W
+                    </label>
                     <input
                       type="number"
                       value={selectedWidget.width}
@@ -580,7 +750,9 @@ export default function OverlayEditorPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] text-gray-500 uppercase">H</label>
+                    <label className="text-[10px] text-gray-500 uppercase">
+                      H
+                    </label>
                     <input
                       type="number"
                       value={selectedWidget.height}
@@ -647,6 +819,21 @@ export default function OverlayEditorPage() {
                       <EyeOff size={10} />
                     )}
                   </button>
+                </div>
+
+                {/* Widget Config */}
+                <div className="border-t border-white/5 pt-3">
+                  <h4 className="text-[10px] text-gray-500 uppercase mb-2">
+                    Config
+                  </h4>
+                  <WidgetConfigPanel
+                    widgetType={selectedWidget.type}
+                    config={selectedWidget.config}
+                    onConfigChange={(key, value) => {
+                      const newConfig = { ...selectedWidget.config, [key]: value };
+                      updateWidget(selectedWidget.id, { config: newConfig });
+                    }}
+                  />
                 </div>
 
                 <button
