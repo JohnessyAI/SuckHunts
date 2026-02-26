@@ -156,8 +156,10 @@ function HuntTableWidget({
   height: number;
   isEditor?: boolean;
 }) {
-  // Scale font proportionally — constrained by both width and height
-  const fontSize = Math.max(10, Math.min(width * 0.035, height * 0.04, 20));
+  // Scale font proportionally — config fontSize acts as weight, clamped by widget size
+  const configFontSize = c(config, "fontSize", 14) as number ?? 14;
+  const fontScale = configFontSize / 14;
+  const fontSize = Math.max(10, Math.min(width * 0.035 * fontScale, height * 0.04 * fontScale, configFontSize * 1.5));
   const autoScroll = c(config, "autoScroll", true) as boolean;
   const scrollSpeed = c(config, "scrollSpeed", 30) as number ?? 30;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -305,12 +307,14 @@ function CurrentGameWidget({
   const atBet = record?.atCurrentBet ?? null;
 
   // ─── Proportional scaling ───
+  const configFontSize = c(config, "fontSize", 20) as number ?? 20;
   const md = minDim(width, height);
   const isPortrait = height > width * 0.8;
   const isLandscape = width > height * 1.2;
 
-  // All font sizes scale proportionally with the widget
-  const titleSize = Math.max(11, Math.min(md * 0.14, width * 0.08, 36));
+  // Config fontSize acts as a weight (20 = 1.0x, 40 = 2.0x, 10 = 0.5x)
+  const fontScale = configFontSize / 20;
+  const titleSize = Math.max(11, Math.min(md * 0.14 * fontScale, width * 0.08 * fontScale, configFontSize * 2));
   const labelSize = Math.max(7, titleSize * 0.45);
   const detailSize = Math.max(8, titleSize * 0.55);
 
@@ -565,7 +569,9 @@ function WidgetContent({
     case "biggest-win": {
       if (!bestEntry) return placeholder("Biggest Win");
       const showGame = c(config, "showGame") as boolean;
-      const mainSize = Math.max(14, Math.min(width * 0.14, height * (showGame ? 0.3 : 0.45)));
+      const bwFontSize = c(config, "fontSize", 28) as number ?? 28;
+      const bwScale = bwFontSize / 28;
+      const mainSize = Math.max(14, Math.min(width * 0.14 * bwScale, height * (showGame ? 0.3 : 0.45) * bwScale, bwFontSize * 2));
       const subSize = Math.max(10, mainSize * 0.45);
       return (
         <div className="flex items-center justify-center h-full w-full px-3 overflow-hidden">
@@ -595,9 +601,11 @@ function WidgetContent({
       const showAvg = c(config, "showAvg") as boolean;
       const statCount = 2 + (showProfit ? 1 : 0) + (showAvg ? 1 : 0);
 
+      const configFontSize = c(config, "fontSize", 16) as number ?? 16;
+      const fontScale = configFontSize / 16;
       const perItemW = isHorizontal ? width / statCount : width;
       const perItemH = isHorizontal ? height : height / statCount;
-      const valSize = Math.max(12, Math.min(perItemW * 0.18, perItemH * 0.35));
+      const valSize = Math.max(12, Math.min(perItemW * 0.18 * fontScale, perItemH * 0.35 * fontScale, configFontSize * 2));
       const labelSize = Math.max(8, valSize * 0.5);
 
       return (
@@ -680,7 +688,9 @@ function WidgetContent({
       const count = c(config, "count", 5) as number ?? 3;
       const pending = entries.filter((e) => e.status === "pending");
       if (!pending.length) return placeholder("Next Up");
-      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, pending.length) / 2.2, 24));
+      const cfgFs = c(config, "fontSize", 14) as number ?? 14;
+      const fScale = cfgFs / 14;
+      const rowFontSize = Math.max(10, Math.min(width * 0.05 * fScale, height / Math.min(count, pending.length) / 2.2, cfgFs * 1.8));
       const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = pending.slice(0, Math.min(count, maxVisible));
       return (
@@ -704,7 +714,9 @@ function WidgetContent({
       const count = c(config, "count", 5) as number ?? 5;
       const recent = [...completed].reverse().slice(0, count);
       if (!recent.length) return placeholder("Recent Results");
-      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, recent.length) / 2.2, 24));
+      const cfgFs2 = c(config, "fontSize", 14) as number ?? 14;
+      const fScale2 = cfgFs2 / 14;
+      const rowFontSize = Math.max(10, Math.min(width * 0.05 * fScale2, height / Math.min(count, recent.length) / 2.2, cfgFs2 * 1.8));
       const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = recent.slice(0, maxVisible);
       return (
@@ -736,7 +748,9 @@ function WidgetContent({
         .sort((a, b) => parseFloat(b.multiplier!) - parseFloat(a.multiplier!))
         .slice(0, count);
       if (!ranked.length) return placeholder("Top Wins");
-      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, ranked.length) / 2.2, 24));
+      const cfgFs3 = c(config, "fontSize", 14) as number ?? 14;
+      const fScale3 = cfgFs3 / 14;
+      const rowFontSize = Math.max(10, Math.min(width * 0.05 * fScale3, height / Math.min(count, ranked.length) / 2.2, cfgFs3 * 1.8));
       const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = ranked.slice(0, maxVisible);
       return (
@@ -761,7 +775,9 @@ function WidgetContent({
       const color = c(config, "color", "#ffffff") as string ?? "#ffffff";
       const fontWeight = c(config, "fontWeight", "bold") as string ?? "bold";
       const align = c(config, "align", "center") as string ?? "center";
-      const adaptedFontSize = Math.max(10, Math.min(width * 0.08, height * 0.4));
+      const ctFontSize = c(config, "fontSize", 24) as number ?? 24;
+      const ctScale = ctFontSize / 24;
+      const adaptedFontSize = Math.max(10, Math.min(width * 0.08 * ctScale, height * 0.4 * ctScale, ctFontSize * 2));
       return (
         <div className="flex items-center justify-center h-full w-full px-3 overflow-hidden" style={{ textAlign: align as React.CSSProperties["textAlign"] }}>
           <p style={{ fontSize: adaptedFontSize, color, fontWeight: fontWeight as React.CSSProperties["fontWeight"] }} className="w-full leading-tight truncate">
@@ -789,7 +805,9 @@ function WidgetContent({
 
     case "timer": {
       const color = c(config, "color", "#ffffff") as string ?? "#ffffff";
-      const adaptedSize = Math.max(12, Math.min(width * 0.12, height * 0.45));
+      const tmFontSize = c(config, "fontSize", 28) as number ?? 28;
+      const tmScale = tmFontSize / 28;
+      const adaptedSize = Math.max(12, Math.min(width * 0.12 * tmScale, height * 0.45 * tmScale, tmFontSize * 2));
       return (
         <div className="flex items-center justify-center h-full w-full overflow-hidden">
           <p style={{ fontSize: adaptedSize, color }} className="font-mono font-bold">
