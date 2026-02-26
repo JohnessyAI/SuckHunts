@@ -203,19 +203,30 @@ export default function WidgetConfigPanel({
               className="form-input text-xs py-1"
             />
           </div>
-          <div>
-            <label className="text-[10px] text-gray-500 uppercase">
-              Max Rows
-            </label>
-            <input
-              type="number"
-              value={(config.maxRows as number) || 20}
-              onChange={(e) =>
-                onConfigChange("maxRows", parseInt(e.target.value) || 20)
-              }
-              className="form-input text-xs py-1"
-            />
-          </div>
+          <ToggleOption label="Auto Scroll" configKey="autoScroll" config={config} onChange={onConfigChange} />
+          {config.autoScroll !== false && (
+            <div>
+              <label className="text-[10px] text-gray-500 uppercase">
+                Scroll Speed (px/s)
+              </label>
+              <input
+                type="range"
+                min="5"
+                max="100"
+                step="5"
+                value={(config.scrollSpeed as number) || 30}
+                onChange={(e) =>
+                  onConfigChange("scrollSpeed", parseInt(e.target.value))
+                }
+                className="w-full accent-red-500"
+              />
+              <div className="flex justify-between text-[9px] text-gray-600">
+                <span>Slow</span>
+                <span>{(config.scrollSpeed as number) || 30} px/s</span>
+                <span>Fast</span>
+              </div>
+            </div>
+          )}
           <ToggleOption label="Show Cost" configKey="showCost" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Result" configKey="showResult" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Multiplier" configKey="showMultiplier" config={config} onChange={onConfigChange} />
@@ -239,6 +250,7 @@ export default function WidgetConfigPanel({
               className="form-input text-xs py-1"
             />
           </div>
+          <ToggleOption label="Show Image" configKey="showImage" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Provider" configKey="showProvider" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Bet" configKey="showBet" config={config} onChange={onConfigChange} />
         </div>

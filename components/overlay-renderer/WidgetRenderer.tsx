@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect, useState } from "react";
 import { formatCurrency, formatMultiplier } from "@/lib/utils/format";
 import { getWidgetType } from "@/lib/overlay/widget-registry";
 
@@ -77,6 +78,113 @@ export default function WidgetRenderer({
   );
 }
 
+function HuntTableWidget({
+  config,
+  entries,
+  isEditor,
+}: {
+  config: Record<string, unknown>;
+  entries: HuntEntry[];
+  isEditor?: boolean;
+}) {
+  const fontSize = c(config, "fontSize", 14) as number ?? 14;
+  const autoScroll = c(config, "autoScroll", true) as boolean;
+  const scrollSpeed = c(config, "scrollSpeed", 30) as number ?? 30; // px per second
+  const containerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useEffect(() => {
+    if (!innerRef.current) return;
+    const h = innerRef.current.scrollHeight / 2; // half because we duplicate
+    setContentHeight(h);
+  }, [entries, fontSize, config]);
+
+  if (!entries.length) {
+    return (
+      <div className="flex items-center justify-center h-full text-white/30 text-sm italic">
+        Hunt Table{isEditor ? " (connect a hunt)" : ""}
+      </div>
+    );
+  }
+
+  const renderRow = (e: HuntEntry, i: number, keyPrefix = "") => {
+    const isWin = e.result && parseFloat(e.result) > parseFloat(e.cost);
+    return (
+      <div
+        key={`${keyPrefix}${e.id}`}
+        className={`flex items-center justify-between px-2 py-1 rounded ${
+          e.status === "playing"
+            ? "bg-red-500/20"
+            : e.status === "completed"
+            ? "bg-white/5"
+            : "bg-white/[0.02] opacity-50"
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-white/30 w-5 text-right">{i + 1}</span>
+          <span className="truncate text-white">{e.gameName}</span>
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {c(config, "showCost") && (
+            <span className="text-white/60">{formatCurrency(e.cost)}</span>
+          )}
+          {c(config, "showResult") && (
+            <span className={e.result ? (isWin ? "text-green-400" : "text-red-400") : "text-white/20"}>
+              {e.result ? formatCurrency(e.result) : "—"}
+            </span>
+          )}
+          {c(config, "showMultiplier") && (
+            <span className={e.status === "playing" ? "text-red-400 animate-pulse" : e.multiplier ? "text-yellow-400" : "text-white/20"}>
+              {e.status === "playing" ? "LIVE" : e.multiplier ? formatMultiplier(e.multiplier) : "—"}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // If auto-scroll is off, just render a static list
+  if (!autoScroll) {
+    return (
+      <div className="h-full overflow-hidden" style={{ fontSize }}>
+        <div className="space-y-0.5">
+          {entries.map((e, i) => renderRow(e, i))}
+        </div>
+      </div>
+    );
+  }
+
+  // Duration for one full scroll cycle
+  const duration = contentHeight > 0 ? contentHeight / scrollSpeed : 20;
+
+  return (
+    <div ref={containerRef} className="h-full overflow-hidden" style={{ fontSize }}>
+      <div
+        ref={innerRef}
+        className="hunt-table-scroll space-y-0.5"
+        style={{
+          animationDuration: `${duration}s`,
+        }}
+      >
+        {/* Original entries */}
+        {entries.map((e, i) => renderRow(e, i, "a-"))}
+        {/* Duplicate for seamless loop */}
+        {entries.map((e, i) => renderRow(e, i, "b-"))}
+      </div>
+      <style>{`
+        .hunt-table-scroll {
+          animation: huntTableScroll ${duration}s linear infinite;
+        }
+        @keyframes huntTableScroll {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-50%); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function WidgetContent({
   type,
   config,
@@ -89,7 +197,9 @@ function WidgetContent({
   isEditor?: boolean;
 }) {
   const entries = huntData?.entries ?? [];
-  const playing = entries.find((e) => e.status === "playing");
+  // Current game: explicit "playing" status, or first entry with no result recorded
+  const playing = entries.find((e) => e.status === "playing")
+    ?? entries.find((e) => e.result == null || e.result === "");
   const completed = entries.filter((e) => e.status === "completed");
   const totalCost = parseFloat(huntData?.totalCost ?? "0");
   const totalWon = parseFloat(huntData?.totalWon ?? "0");
@@ -113,50 +223,7 @@ function WidgetContent({
 
   switch (type) {
     case "hunt-table": {
-      const fontSize = c(config, "fontSize", 14) as number ?? 14;
-      const maxRows = c(config, "maxRows", 20) as number ?? 20;
-      if (!entries.length) return placeholder("Hunt Table");
-      return (
-        <div className="h-full overflow-hidden" style={{ fontSize }}>
-          <div className="space-y-0.5">
-            {entries.slice(0, maxRows).map((e, i) => {
-              const isWin = e.result && parseFloat(e.result) > parseFloat(e.cost);
-              return (
-                <div
-                  key={e.id}
-                  className={`flex items-center justify-between px-2 py-1 rounded ${
-                    e.status === "playing"
-                      ? "bg-red-500/20"
-                      : e.status === "completed"
-                      ? "bg-white/5"
-                      : "bg-white/[0.02] opacity-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-white/30 w-5 text-right">{i + 1}</span>
-                    <span className="truncate text-white">{e.gameName}</span>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    {c(config, "showCost") && (
-                      <span className="text-white/60">{formatCurrency(e.cost)}</span>
-                    )}
-                    {c(config, "showResult") && (
-                      <span className={e.result ? (isWin ? "text-green-400" : "text-red-400") : "text-white/20"}>
-                        {e.result ? formatCurrency(e.result) : "—"}
-                      </span>
-                    )}
-                    {c(config, "showMultiplier") && (
-                      <span className={e.status === "playing" ? "text-red-400 animate-pulse" : e.multiplier ? "text-yellow-400" : "text-white/20"}>
-                        {e.status === "playing" ? "LIVE" : e.multiplier ? formatMultiplier(e.multiplier) : "—"}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      );
+      return <HuntTableWidget config={config} entries={entries} isEditor={isEditor} />;
     }
 
     case "current-game": {
@@ -164,6 +231,13 @@ function WidgetContent({
       if (!playing) return placeholder("Currently Playing");
       return (
         <div className="flex items-center h-full px-4 gap-4">
+          {c(config, "showImage", true) && playing.gameImage && (
+            <img
+              src={playing.gameImage}
+              alt={playing.gameName}
+              className="h-4/5 w-auto rounded object-cover flex-shrink-0"
+            />
+          )}
           <div className="min-w-0">
             <p className="text-white font-bold truncate" style={{ fontSize }}>
               {playing.gameName}

@@ -20,6 +20,24 @@ import WidgetRenderer from "@/components/overlay-renderer/WidgetRenderer";
 import WidgetConfigPanel from "@/components/overlay-editor/WidgetConfigPanel";
 import { MOCK_HUNT_DATA } from "@/lib/overlay/mock-hunt-data";
 
+interface HuntData {
+  title: string;
+  status: string;
+  totalCost: string;
+  totalWon: string;
+  entries: Array<{
+    id: string;
+    gameName: string;
+    gameImage: string | null;
+    gameProvider: string | null;
+    betSize: string;
+    cost: string;
+    result: string | null;
+    multiplier: string | null;
+    status: string;
+  }>;
+}
+
 interface Widget {
   id: string;
   type: string;
@@ -95,9 +113,40 @@ export default function OverlayEditorPage() {
     origH: number;
   } | null>(null);
 
+  const [huntData, setHuntData] = useState<HuntData | null>(null);
+  const [huntDataLoaded, setHuntDataLoaded] = useState(false);
+
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+
+  // Fetch latest hunt data for widget previews
+  useEffect(() => {
+    fetch("/api/hunts/latest")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((hunt) => {
+        if (hunt) {
+          setHuntData({
+            title: hunt.title,
+            status: hunt.status,
+            totalCost: String(hunt.totalCost),
+            totalWon: String(hunt.totalWon),
+            entries: hunt.entries.map((e: Record<string, unknown>) => ({
+              id: e.id as string,
+              gameName: e.gameName as string,
+              gameImage: (e.gameImage as string) ?? null,
+              gameProvider: (e.gameProvider as string) ?? null,
+              betSize: String(e.betSize),
+              cost: String(e.cost),
+              result: e.result != null ? String(e.result) : null,
+              multiplier: e.multiplier != null ? String(e.multiplier) : null,
+              status: e.status as string,
+            })),
+          });
+        }
+        setHuntDataLoaded(true);
+      });
+  }, []);
 
   const fetchProject = useCallback(async () => {
     const res = await fetch(`/api/overlays/${projectId}`);
@@ -694,9 +743,7 @@ export default function OverlayEditorPage() {
                         config={widget.config}
                         width={widget.width}
                         height={widget.height}
-                        huntData={
-                          project.activeHuntId ? undefined : MOCK_HUNT_DATA
-                        }
+                        huntData={huntData ?? (huntDataLoaded ? MOCK_HUNT_DATA : undefined)}
                         isEditor
                       />
                     </div>

@@ -15,7 +15,7 @@ export const WIDGET_TYPES: WidgetType[] = [
     description: "Full list of games in the current hunt",
     defaultWidth: 600,
     defaultHeight: 400,
-    defaultConfig: { showBet: true, showCost: true, showResult: true, showMultiplier: true, maxRows: 20, fontSize: 14 },
+    defaultConfig: { showBet: true, showCost: true, showResult: true, showMultiplier: true, autoScroll: true, scrollSpeed: 30, fontSize: 14 },
     category: "hunt",
   },
   {
@@ -24,7 +24,7 @@ export const WIDGET_TYPES: WidgetType[] = [
     description: "Shows the game currently being played",
     defaultWidth: 400,
     defaultHeight: 120,
-    defaultConfig: { showProvider: true, showBet: true, fontSize: 24 },
+    defaultConfig: { showProvider: true, showBet: true, showImage: true, fontSize: 24 },
     category: "hunt",
   },
   {

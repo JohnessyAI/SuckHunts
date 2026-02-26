@@ -1,6 +1,7 @@
 /**
- * Realistic mock hunt data used in the overlay editor
- * so widgets display with placeholder content.
+ * Fallback mock hunt data used in the overlay editor
+ * when the user has no hunts yet. Once a hunt exists,
+ * the editor fetches real data from /api/hunts/latest.
  */
 
 export const MOCK_HUNT_DATA = {
