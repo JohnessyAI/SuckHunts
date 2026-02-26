@@ -68,11 +68,12 @@ export default function PublicViewerPage() {
   }
 
   const cur = hunt.currency || "USD";
+  const startBal = hunt.startBalance ? parseFloat(hunt.startBalance) : null;
   const completedEntries = hunt.entries.filter((e) => e.status === "completed");
   const completed = completedEntries.length;
-  const totalBet = completedEntries.reduce((s, e) => s + parseFloat(e.betSize), 0);
+  const allBetTotal = hunt.entries.reduce((s, e) => s + parseFloat(e.betSize), 0);
   const totalWon = completedEntries.reduce((s, e) => s + (e.result ? parseFloat(e.result) : 0), 0);
-  const profit = totalWon - totalBet;
+  const profit = startBal != null ? totalWon - startBal : totalWon - allBetTotal;
   const avgMultiplier =
     completed > 0
       ? completedEntries
@@ -127,7 +128,7 @@ export default function PublicViewerPage() {
         {/* Stats Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
           {[
-            { label: "Cost", value: formatCurrency(totalBet, cur), icon: DollarSign, color: "text-white" },
+            { label: startBal != null ? "Balance" : "Cost", value: formatCurrency(startBal != null ? startBal : allBetTotal, cur), icon: DollarSign, color: "text-white" },
             { label: "Won", value: formatCurrency(totalWon, cur), icon: TrendingUp, color: "text-green-400" },
             {
               label: "Profit",

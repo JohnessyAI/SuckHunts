@@ -380,15 +380,23 @@ export default function HuntControlPanel() {
   const startBal = hunt.startBalance ? parseFloat(hunt.startBalance) : null;
   const completedEntries = hunt.entries.filter((e) => e.status === "completed");
   const completed = completedEntries.length;
-  const totalBet = completedEntries.reduce((s, e) => s + parseFloat(e.betSize), 0);
+  const allBetTotal = hunt.entries.reduce((s, e) => s + parseFloat(e.betSize), 0);
   const totalWon = completedEntries.reduce((s, e) => s + (e.result ? parseFloat(e.result) : 0), 0);
-  const profit = totalWon - totalBet;
+  // Profit = total won - start balance (what we spent buying bonuses)
+  const profit = startBal != null ? totalWon - startBal : totalWon - allBetTotal;
   const avgMultiplier =
     completed > 0
       ? completedEntries
           .filter((e) => e.multiplier)
           .reduce((s, e) => s + parseFloat(e.multiplier!), 0) / completed
       : 0;
+  // Required avg multiplier on remaining games to break even
+  const remainingEntries = hunt.entries.filter((e) => e.status !== "completed");
+  const remainingBetTotal = remainingEntries.reduce((s, e) => s + parseFloat(e.betSize), 0);
+  const requiredWin = startBal != null ? startBal - totalWon : allBetTotal - totalWon;
+  const reqAvgMulti = remainingBetTotal > 0 && requiredWin > 0
+    ? requiredWin / remainingBetTotal
+    : 0;
   const biggestWin = completedEntries.length > 0
     ? completedEntries.reduce((best, e) => {
         const r = e.result ? parseFloat(e.result) : 0;
@@ -621,7 +629,7 @@ export default function HuntControlPanel() {
       )}
 
       {/* Running Totals */}
-      <div className={`grid gap-3 mb-6 ${startBal != null ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"}`}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         {startBal != null && (
           <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
             <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Start Balance</p>
@@ -630,24 +638,32 @@ export default function HuntControlPanel() {
             </p>
           </div>
         )}
-        {[
-          { label: "Total Bet", value: formatCurrency(totalBet, cur), color: "text-white" },
-          { label: "Total Won", value: formatCurrency(totalWon, cur), color: "text-green-400" },
-          {
-            label: "Profit",
-            value: `${profit >= 0 ? "+" : ""}${formatCurrency(profit, cur)}`,
-            color: profit >= 0 ? "text-green-400" : "text-red-400",
-          },
-          { label: "Avg Multi", value: formatMultiplier(avgMultiplier), color: "text-yellow-400" },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="glass-card rounded-lg p-3 border border-white/5 text-center"
-          >
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{stat.label}</p>
-            <p className={`font-outfit text-lg font-bold ${stat.color}`}>{stat.value}</p>
+        <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Total Won</p>
+          <p className="font-outfit text-lg font-bold text-green-400">
+            {formatCurrency(totalWon, cur)}
+          </p>
+        </div>
+        <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Profit</p>
+          <p className={`font-outfit text-lg font-bold ${profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+            {profit >= 0 ? "+" : ""}{formatCurrency(profit, cur)}
+          </p>
+        </div>
+        <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Avg Multi</p>
+          <p className="font-outfit text-lg font-bold text-yellow-400">
+            {formatMultiplier(avgMultiplier)}
+          </p>
+        </div>
+        {reqAvgMulti > 0 && (
+          <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Req Avg X</p>
+            <p className="font-outfit text-lg font-bold text-orange-400">
+              {formatMultiplier(reqAvgMulti)}
+            </p>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Add Game Form */}
