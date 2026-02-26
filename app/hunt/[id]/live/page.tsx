@@ -24,7 +24,7 @@ interface Hunt {
   description: string | null;
   status: string;
   startBalance: string | null;
-  totalCost: string;
+  totalBet: string;
   totalWon: string;
   currency: string;
   entries: HuntEntry[];
@@ -70,9 +70,9 @@ export default function PublicViewerPage() {
   const cur = hunt.currency || "USD";
   const completedEntries = hunt.entries.filter((e) => e.status === "completed");
   const completed = completedEntries.length;
-  const totalCost = completedEntries.reduce((s, e) => s + parseFloat(e.cost), 0);
+  const totalBet = completedEntries.reduce((s, e) => s + parseFloat(e.betSize), 0);
   const totalWon = completedEntries.reduce((s, e) => s + (e.result ? parseFloat(e.result) : 0), 0);
-  const profit = totalWon - totalCost;
+  const profit = totalWon - totalBet;
   const avgMultiplier =
     completed > 0
       ? completedEntries
@@ -127,7 +127,7 @@ export default function PublicViewerPage() {
         {/* Stats Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
           {[
-            { label: "Cost", value: formatCurrency(totalCost, cur), icon: DollarSign, color: "text-white" },
+            { label: "Cost", value: formatCurrency(totalBet, cur), icon: DollarSign, color: "text-white" },
             { label: "Won", value: formatCurrency(totalWon, cur), icon: TrendingUp, color: "text-green-400" },
             {
               label: "Profit",

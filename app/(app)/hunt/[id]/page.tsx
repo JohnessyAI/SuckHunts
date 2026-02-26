@@ -53,7 +53,7 @@ interface Hunt {
   description: string | null;
   status: string;
   startBalance: string | null;
-  totalCost: string;
+  totalBet: string;
   totalWon: string;
   currency: string;
   shareSlug: string;
@@ -80,7 +80,6 @@ export default function HuntControlPanel() {
   const [showAdd, setShowAdd] = useState(false);
   const [gameName, setGameName] = useState("");
   const [betSize, setBetSize] = useState("");
-  const [buyPrice, setBuyPrice] = useState("");
   const [adding, setAdding] = useState(false);
 
   // Game search
@@ -161,7 +160,6 @@ export default function HuntControlPanel() {
     setAdding(true);
 
     const bet = parseFloat(betSize);
-    const cost = buyPrice ? parseFloat(buyPrice) : bet;
 
     await fetch(`/api/hunts/${huntId}/entries`, {
       method: "POST",
@@ -172,13 +170,12 @@ export default function HuntControlPanel() {
         gameImage: selectedGame?.imageUrl || null,
         gameProvider: selectedGame?.provider || null,
         betSize: bet,
-        cost,
+        cost: bet,
       }),
     });
 
     setGameName("");
     setBetSize("");
-    setBuyPrice("");
     setSelectedGame(null);
     setShowAdd(false);
     setAdding(false);
@@ -261,9 +258,9 @@ export default function HuntControlPanel() {
   const startBal = hunt.startBalance ? parseFloat(hunt.startBalance) : null;
   const completedEntries = hunt.entries.filter((e) => e.status === "completed");
   const completed = completedEntries.length;
-  const totalCost = completedEntries.reduce((s, e) => s + parseFloat(e.cost), 0);
+  const totalBet = completedEntries.reduce((s, e) => s + parseFloat(e.betSize), 0);
   const totalWon = completedEntries.reduce((s, e) => s + (e.result ? parseFloat(e.result) : 0), 0);
-  const profit = totalWon - totalCost;
+  const profit = totalWon - totalBet;
   const avgMultiplier =
     completed > 0
       ? completedEntries
@@ -476,7 +473,7 @@ export default function HuntControlPanel() {
           </div>
         )}
         {[
-          { label: "Total Cost", value: formatCurrency(totalCost, cur), color: "text-white" },
+          { label: "Total Bet", value: formatCurrency(totalBet, cur), color: "text-white" },
           { label: "Total Won", value: formatCurrency(totalWon, cur), color: "text-green-400" },
           {
             label: "Profit",
@@ -608,16 +605,6 @@ export default function HuntControlPanel() {
               required
             />
 
-            {/* Buy Price (optional — for bonus buys) */}
-            <input
-              type="number"
-              value={buyPrice}
-              onChange={(e) => setBuyPrice(e.target.value)}
-              placeholder="Buy price"
-              className="form-input w-full sm:w-28"
-              step="0.01"
-            />
-
             {/* Submit */}
             <button
               type="submit"
@@ -627,9 +614,6 @@ export default function HuntControlPanel() {
               {adding ? "Adding..." : "Add"}
             </button>
           </div>
-          <p className="text-[10px] text-gray-600 mt-2">
-            Leave &quot;Buy price&quot; empty if you spun into the bonus — cost will equal bet size.
-          </p>
         </form>
       )}
 
