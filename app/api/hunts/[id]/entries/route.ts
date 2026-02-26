@@ -23,10 +23,13 @@ export async function POST(
   if (!hunt) return notFound("Hunt not found");
 
   const body = await req.json();
-  const { gameName, gameSlug, gameImage, gameProvider, betSize, cost } = body;
+  const { gameName, gameSlug, gameImage, gameProvider } = body;
 
   if (!gameName?.trim()) return badRequest("Game name is required");
-  if (cost === undefined || cost <= 0) return badRequest("Cost is required");
+
+  const betSize = parseFloat(body.betSize);
+  if (!betSize || betSize <= 0) return badRequest("Bet size is required");
+  const cost = body.cost ? parseFloat(body.cost) : betSize;
 
   const entry = await prisma.huntEntry.create({
     data: {
@@ -35,7 +38,7 @@ export async function POST(
       gameSlug: gameSlug || null,
       gameImage: gameImage || null,
       gameProvider: gameProvider || null,
-      betSize: betSize || cost,
+      betSize,
       cost,
       position: hunt._count.entries,
     },

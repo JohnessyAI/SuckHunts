@@ -62,7 +62,7 @@ export default function HuntControlPanel() {
   const [showAdd, setShowAdd] = useState(false);
   const [gameName, setGameName] = useState("");
   const [betSize, setBetSize] = useState("");
-  const [cost, setCost] = useState("");
+  const [buyPrice, setBuyPrice] = useState("");
   const [adding, setAdding] = useState(false);
 
   // Game search
@@ -133,8 +133,11 @@ export default function HuntControlPanel() {
 
   const addEntry = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gameName.trim() || !cost) return;
+    if (!gameName.trim() || !betSize) return;
     setAdding(true);
+
+    const bet = parseFloat(betSize);
+    const cost = buyPrice ? parseFloat(buyPrice) : bet;
 
     await fetch(`/api/hunts/${huntId}/entries`, {
       method: "POST",
@@ -144,14 +147,14 @@ export default function HuntControlPanel() {
         gameSlug: selectedGame?.slug || null,
         gameImage: selectedGame?.imageUrl || null,
         gameProvider: selectedGame?.provider || null,
-        betSize: parseFloat(betSize) || parseFloat(cost),
-        cost: parseFloat(cost),
+        betSize: bet,
+        cost,
       }),
     });
 
     setGameName("");
     setBetSize("");
-    setCost("");
+    setBuyPrice("");
     setSelectedGame(null);
     setShowAdd(false);
     setAdding(false);
@@ -324,122 +327,131 @@ export default function HuntControlPanel() {
           onSubmit={addEntry}
           className="glass-card rounded-xl border border-white/5 p-4 mb-3 relative z-20"
         >
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <div className="relative sm:col-span-2" ref={dropdownRef}>
-                {selectedGame ? (
-                  <div className="form-input flex items-center gap-2">
-                    {selectedGame.imageUrl && (
-                      <img
-                        src={selectedGame.imageUrl}
-                        alt=""
-                        className="w-8 h-8 rounded object-cover flex-shrink-0"
-                      />
-                    )}
-                    <span className="truncate text-white text-sm flex-1">
-                      {selectedGame.name}
-                    </span>
-                    <span className="text-[10px] text-gray-500 flex-shrink-0">
-                      {selectedGame.provider}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={clearSelectedGame}
-                      className="text-gray-500 hover:text-white flex-shrink-0"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                    <input
-                      type="text"
-                      value={gameName}
-                      onChange={(e) => {
-                        setGameName(e.target.value);
-                        searchGames(e.target.value);
-                      }}
-                      placeholder="Search games..."
-                      className="form-input pl-9 w-full"
-                      autoFocus
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Game Search */}
+            <div className="relative flex-1 min-w-0" ref={dropdownRef}>
+              {selectedGame ? (
+                <div className="form-input flex items-center gap-2">
+                  {selectedGame.imageUrl && (
+                    <img
+                      src={selectedGame.imageUrl}
+                      alt=""
+                      className="w-8 h-8 rounded object-cover flex-shrink-0"
                     />
-                  </div>
-                )}
+                  )}
+                  <span className="truncate text-white text-sm flex-1">
+                    {selectedGame.name}
+                  </span>
+                  <span className="text-[10px] text-gray-500 flex-shrink-0">
+                    {selectedGame.provider}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearSelectedGame}
+                    className="text-gray-500 hover:text-white flex-shrink-0"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input
+                    type="text"
+                    value={gameName}
+                    onChange={(e) => {
+                      setGameName(e.target.value);
+                      searchGames(e.target.value);
+                    }}
+                    placeholder="Search games..."
+                    className="form-input pl-9 w-full"
+                    autoFocus
+                  />
+                </div>
+              )}
 
-                {/* Search Results Dropdown */}
-                {showResults && searchResults.length > 0 && (
-                  <div className="absolute z-[100] top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
-                    {searchResults.map((game) => (
-                      <button
-                        key={game.slug}
-                        type="button"
-                        onClick={() => selectGame(game)}
-                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left"
-                      >
-                        {game.imageUrl ? (
-                          <img
-                            src={game.imageUrl}
-                            alt=""
-                            className="w-10 h-10 rounded object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded bg-white/5 flex-shrink-0" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm text-white truncate">{game.name}</p>
-                          <p className="text-[10px] text-gray-500">{game.provider}</p>
-                        </div>
-                        {game.rtp && (
-                          <span className="text-[10px] text-gray-500 flex-shrink-0">
-                            {game.rtp}% RTP
-                          </span>
-                        )}
-                      </button>
-                    ))}
-                    {/* Quick add option for unlisted games */}
+              {/* Search Results Dropdown */}
+              {showResults && searchResults.length > 0 && (
+                <div className="absolute z-[100] top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+                  {searchResults.map((game) => (
                     <button
+                      key={game.slug}
                       type="button"
-                      onClick={() => {
-                        setShowResults(false);
-                        setSearchResults([]);
-                      }}
-                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left border-t border-white/5"
+                      onClick={() => selectGame(game)}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left"
                     >
-                      <div className="w-10 h-10 rounded bg-white/5 flex items-center justify-center flex-shrink-0">
-                        <Plus size={14} className="text-gray-500" />
+                      {game.imageUrl ? (
+                        <img
+                          src={game.imageUrl}
+                          alt=""
+                          className="w-10 h-10 rounded object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-white/5 flex-shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-white truncate">{game.name}</p>
+                        <p className="text-[10px] text-gray-500">{game.provider}</p>
                       </div>
-                      <p className="text-sm text-gray-400">
-                        Use &quot;{gameName}&quot; as custom name
-                      </p>
+                      {game.rtp && (
+                        <span className="text-[10px] text-gray-500 flex-shrink-0">
+                          {game.rtp}% RTP
+                        </span>
+                      )}
                     </button>
-                  </div>
-                )}
-              </div>
-              <input
-                type="number"
-                value={betSize}
-                onChange={(e) => setBetSize(e.target.value)}
-                placeholder="Bet size"
-                className="form-input"
-                step="0.01"
-              />
-              <input
-                type="number"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                placeholder="Bonus cost"
-                className="form-input"
-                step="0.01"
-                required
-              />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowResults(false);
+                      setSearchResults([]);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left border-t border-white/5"
+                  >
+                    <div className="w-10 h-10 rounded bg-white/5 flex items-center justify-center flex-shrink-0">
+                      <Plus size={14} className="text-gray-500" />
+                    </div>
+                    <p className="text-sm text-gray-400">
+                      Use &quot;{gameName}&quot; as custom name
+                    </p>
+                  </button>
+                </div>
+              )}
             </div>
+
+            {/* Bet Size */}
+            <input
+              type="number"
+              value={betSize}
+              onChange={(e) => setBetSize(e.target.value)}
+              placeholder="Bet size"
+              className="form-input w-full sm:w-28"
+              step="0.01"
+              required
+            />
+
+            {/* Buy Price (optional — for bonus buys) */}
+            <input
+              type="number"
+              value={buyPrice}
+              onChange={(e) => setBuyPrice(e.target.value)}
+              placeholder="Buy price"
+              className="form-input w-full sm:w-28"
+              step="0.01"
+            />
+
+            {/* Submit */}
             <button
               type="submit"
-              disabled={adding || !gameName.trim() || !cost}
-              className="mt-3 bg-gradient-to-r from-red-600 to-red-500 disabled:from-gray-700 disabled:to-gray-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              disabled={adding || !gameName.trim() || !betSize}
+              className="bg-gradient-to-r from-red-600 to-red-500 disabled:from-gray-700 disabled:to-gray-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap"
             >
-              {adding ? "Adding..." : "Add to Hunt"}
+              {adding ? "Adding..." : "Add"}
             </button>
+          </div>
+          <p className="text-[10px] text-gray-600 mt-2">
+            Leave &quot;Buy price&quot; empty if you spun into the bonus — cost will equal bet size.
+          </p>
         </form>
       )}
 
@@ -458,154 +470,178 @@ export default function HuntControlPanel() {
           )}
         </div>
 
-        {/* Entry List */}
         {hunt.entries.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
             No games added yet. Click &quot;Add Game&quot; to get started.
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
-            {/* Header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[10px] text-gray-500 uppercase tracking-wider">
-              <div className="col-span-1">#</div>
-              <div className="col-span-4">Game</div>
-              <div className="col-span-1 text-right">Bet</div>
-              <div className="col-span-2 text-right">Cost</div>
-              <div className="col-span-2 text-right">Result</div>
-              <div className="col-span-1 text-right">Multi</div>
-              <div className="col-span-1" />
-            </div>
+          <table className="w-full">
+            <thead>
+              <tr className="bg-white/[0.02] border-b border-white/5">
+                <th className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-10">#</th>
+                <th className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium py-2.5">Game</th>
+                <th className="text-right text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-24">Bet</th>
+                <th className="text-right text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-28">Won</th>
+                <th className="text-right text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-20">Multi</th>
+                {hunt.status !== "completed" && (
+                  <th className="w-16 px-4 py-2.5" />
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {hunt.entries.map((entry, i) => {
+                const cost = parseFloat(entry.cost);
+                const result = entry.result !== null ? parseFloat(entry.result) : null;
+                const multi = entry.multiplier ? parseFloat(entry.multiplier) : null;
+                const isProfit = result !== null && result > cost;
+                const isLoss = result !== null && result <= cost;
 
-            {hunt.entries.map((entry, i) => (
-              <div
-                key={entry.id}
-                className={`grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm ${
-                  entry.status === "playing"
-                    ? "bg-red-500/5 border-l-2 border-red-500"
-                    : entry.status === "completed"
-                    ? "opacity-80"
-                    : ""
-                }`}
-              >
-                <div className="col-span-1 text-gray-500 text-xs">
-                  {i + 1}
-                </div>
-                <div className="col-span-4 flex items-center gap-2 min-w-0">
-                  {entry.gameImage ? (
-                    <img
-                      src={entry.gameImage}
-                      alt=""
-                      className="w-9 h-9 rounded object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded bg-white/5 flex-shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <span className="truncate text-white font-medium block text-sm">
-                      {entry.gameName}
-                    </span>
-                    {entry.gameProvider && (
-                      <span className="text-[10px] text-gray-600 block">
-                        {entry.gameProvider}
-                      </span>
+                return (
+                  <tr
+                    key={entry.id}
+                    className={`border-b border-white/5 last:border-b-0 transition-colors ${
+                      entry.status === "playing"
+                        ? "bg-red-500/5 border-l-2 border-l-red-500"
+                        : isProfit
+                        ? "border-l-2 border-l-green-500/40"
+                        : isLoss
+                        ? "border-l-2 border-l-red-500/30"
+                        : ""
+                    }`}
+                  >
+                    {/* # */}
+                    <td className="px-4 py-3 text-gray-600 text-xs font-mono">
+                      {i + 1}
+                    </td>
+
+                    {/* Game */}
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {entry.gameImage && (
+                          <img
+                            src={entry.gameImage}
+                            alt=""
+                            className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <span className="text-white font-medium text-sm block truncate">
+                            {entry.gameName}
+                          </span>
+                          {entry.gameProvider && (
+                            <span className="text-[10px] text-gray-600 block">
+                              {entry.gameProvider}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Bet */}
+                    <td className="px-4 py-3 text-right text-sm text-gray-400">
+                      {formatCurrency(entry.betSize)}
+                    </td>
+
+                    {/* Won */}
+                    <td className="px-4 py-3 text-right text-sm">
+                      {recordingId === entry.id ? (
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            recordResult(entry.id);
+                          }}
+                          className="flex items-center gap-1 justify-end"
+                        >
+                          <input
+                            type="number"
+                            value={resultValue}
+                            onChange={(e) => setResultValue(e.target.value)}
+                            className="w-24 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-sm text-right text-white focus:border-red-500/50 focus:outline-none"
+                            step="0.01"
+                            autoFocus
+                            placeholder="0.00"
+                          />
+                          <button
+                            type="submit"
+                            className="text-green-400 hover:text-green-300 text-xs font-medium ml-1"
+                          >
+                            OK
+                          </button>
+                        </form>
+                      ) : result !== null ? (
+                        <span
+                          className={`font-semibold cursor-pointer hover:opacity-80 ${
+                            isProfit ? "text-green-400" : "text-red-400"
+                          }`}
+                          onClick={() => {
+                            setRecordingId(entry.id);
+                            setResultValue(entry.result || "");
+                          }}
+                        >
+                          {formatCurrency(result)}
+                        </span>
+                      ) : entry.status === "playing" ? (
+                        <button
+                          onClick={() => {
+                            setRecordingId(entry.id);
+                            setResultValue("");
+                          }}
+                          className="text-red-400 text-xs font-medium animate-pulse"
+                        >
+                          Record &rarr;
+                        </button>
+                      ) : (
+                        <span className="text-gray-700">&mdash;</span>
+                      )}
+                    </td>
+
+                    {/* Multi */}
+                    <td className="px-4 py-3 text-right text-sm">
+                      {multi !== null ? (
+                        <span
+                          className={`font-semibold ${
+                            multi > 1 ? "text-green-400" : "text-red-400"
+                          }`}
+                        >
+                          {formatMultiplier(multi)}
+                        </span>
+                      ) : entry.status === "playing" ? (
+                        <span className="text-red-400 text-xs font-medium animate-pulse">
+                          LIVE
+                        </span>
+                      ) : (
+                        <span className="text-gray-700">&mdash;</span>
+                      )}
+                    </td>
+
+                    {/* Actions */}
+                    {hunt.status !== "completed" && (
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {entry.status === "pending" && (
+                            <button
+                              onClick={() => setPlaying(entry.id)}
+                              className="text-gray-600 hover:text-red-400 transition-colors"
+                              title="Set as playing"
+                            >
+                              <Play size={14} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteEntry(entry.id)}
+                            className="text-gray-700 hover:text-red-400 transition-colors"
+                            title="Remove"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
                     )}
-                  </div>
-                </div>
-                <div className="col-span-1 text-right text-gray-400">
-                  ${parseFloat(entry.betSize).toFixed(2)}
-                </div>
-                <div className="col-span-2 text-right text-white">
-                  {formatCurrency(entry.cost)}
-                </div>
-                <div className="col-span-2 text-right">
-                  {recordingId === entry.id ? (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        recordResult(entry.id);
-                      }}
-                      className="flex items-center gap-1 justify-end"
-                    >
-                      <input
-                        type="number"
-                        value={resultValue}
-                        onChange={(e) => setResultValue(e.target.value)}
-                        className="w-20 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-right text-white"
-                        step="0.01"
-                        autoFocus
-                        placeholder="0.00"
-                      />
-                      <button
-                        type="submit"
-                        className="text-green-400 hover:text-green-300 text-xs"
-                      >
-                        OK
-                      </button>
-                    </form>
-                  ) : entry.result !== null ? (
-                    <span
-                      className={`font-medium cursor-pointer ${
-                        parseFloat(entry.result) > parseFloat(entry.cost)
-                          ? "text-green-400"
-                          : "text-red-400"
-                      }`}
-                      onClick={() => {
-                        setRecordingId(entry.id);
-                        setResultValue(entry.result || "");
-                      }}
-                    >
-                      {formatCurrency(entry.result)}
-                    </span>
-                  ) : entry.status === "playing" ? (
-                    <button
-                      onClick={() => {
-                        setRecordingId(entry.id);
-                        setResultValue("");
-                      }}
-                      className="text-red-400 text-xs animate-pulse"
-                    >
-                      Record →
-                    </button>
-                  ) : (
-                    <span className="text-gray-600">—</span>
-                  )}
-                </div>
-                <div className="col-span-1 text-right">
-                  {entry.multiplier ? (
-                    <span className="text-yellow-400 text-xs">
-                      {formatMultiplier(entry.multiplier)}
-                    </span>
-                  ) : entry.status === "playing" ? (
-                    <span className="text-red-400 text-xs animate-pulse">
-                      LIVE
-                    </span>
-                  ) : (
-                    <span className="text-gray-600">—</span>
-                  )}
-                </div>
-                <div className="col-span-1 flex items-center justify-end gap-1">
-                  {entry.status === "pending" && hunt.status !== "completed" && (
-                    <button
-                      onClick={() => setPlaying(entry.id)}
-                      className="text-gray-500 hover:text-red-400 transition-colors"
-                      title="Set as playing"
-                    >
-                      <Play size={12} />
-                    </button>
-                  )}
-                  {hunt.status !== "completed" && (
-                    <button
-                      onClick={() => deleteEntry(entry.id)}
-                      className="text-gray-600 hover:text-red-400 transition-colors"
-                      title="Remove"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
