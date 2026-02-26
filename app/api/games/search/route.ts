@@ -1,31 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// GET /api/games/search?q=gates&limit=20 — game autocomplete search
+// GET /api/games/search?q=gates&limit=20 — fast game autocomplete
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q") ?? "";
-  const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "20"), 50);
+  const limit = Math.min(
+    parseInt(req.nextUrl.searchParams.get("limit") ?? "20"),
+    50
+  );
 
   if (q.length < 2) {
     return NextResponse.json([]);
   }
 
-  const games = await prisma.game.findMany({
-    where: {
-      name: { contains: q, mode: "insensitive" },
-    },
-    select: {
-      slug: true,
-      name: true,
-      provider: true,
-      imageUrl: true,
-      rtp: true,
-      volatility: true,
-      maxWin: true,
-    },
-    orderBy: { timesUsedInHunts: "desc" },
-    take: limit,
-  });
+  // Use trigram similarity for fuzzy matching + ILIKE for exact substring
+  // Orders by: exact prefix first, then similarity score, then popularity
+  const games = await prisma.$queryRaw`
+    SELECT slug, name, provider, "imageUrl", rtp, volatility, "maxWin"
+    FROM "Game"
+    WHERE name ILIKE ${"%" + q + "%"}
+       OR provider ILIKE ${"%" + q + "%"}
+    ORDER BY
+      (name ILIKE ${q + "%"})::int DESC,
+      similarity(name, ${q}) DESC,
+      "timesUsedInHunts" DESC
+    LIMIT ${limit}
+  `;
 
-  return NextResponse.json(games);
+  return NextResponse.json(games, {
+    headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
+  });
 }

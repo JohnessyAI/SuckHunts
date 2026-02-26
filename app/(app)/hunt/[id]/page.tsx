@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -12,8 +12,19 @@ import {
   Copy,
   ExternalLink,
   X,
+  Search,
 } from "lucide-react";
 import { formatCurrency, formatMultiplier } from "@/lib/utils/format";
+
+interface GameResult {
+  slug: string;
+  name: string;
+  provider: string;
+  imageUrl: string | null;
+  rtp: string | null;
+  volatility: string | null;
+  maxWin: string | null;
+}
 
 interface HuntEntry {
   id: string;
@@ -54,6 +65,13 @@ export default function HuntControlPanel() {
   const [cost, setCost] = useState("");
   const [adding, setAdding] = useState(false);
 
+  // Game search
+  const [searchResults, setSearchResults] = useState<GameResult[]>([]);
+  const [selectedGame, setSelectedGame] = useState<GameResult | null>(null);
+  const [showResults, setShowResults] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   // Result recording
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [resultValue, setResultValue] = useState("");
@@ -72,6 +90,47 @@ export default function HuntControlPanel() {
     fetchHunt();
   }, [fetchHunt]);
 
+  // Game search with debounce
+  const searchGames = useCallback((query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (query.length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    debounceRef.current = setTimeout(async () => {
+      const res = await fetch(`/api/games/search?q=${encodeURIComponent(query)}&limit=8`);
+      if (res.ok) {
+        const results = await res.json();
+        setSearchResults(results);
+        setShowResults(results.length > 0);
+      }
+    }, 200);
+  }, []);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const selectGame = (game: GameResult) => {
+    setGameName(game.name);
+    setSelectedGame(game);
+    setShowResults(false);
+    setSearchResults([]);
+  };
+
+  const clearSelectedGame = () => {
+    setSelectedGame(null);
+    setGameName("");
+  };
+
   const addEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gameName.trim() || !cost) return;
@@ -82,6 +141,9 @@ export default function HuntControlPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         gameName: gameName.trim(),
+        gameSlug: selectedGame?.slug || null,
+        gameImage: selectedGame?.imageUrl || null,
+        gameProvider: selectedGame?.provider || null,
         betSize: parseFloat(betSize) || parseFloat(cost),
         cost: parseFloat(cost),
       }),
@@ -90,6 +152,7 @@ export default function HuntControlPanel() {
     setGameName("");
     setBetSize("");
     setCost("");
+    setSelectedGame(null);
     setShowAdd(false);
     setAdding(false);
     fetchHunt();
@@ -277,14 +340,96 @@ export default function HuntControlPanel() {
             className="p-4 border-b border-white/5 bg-white/[0.01]"
           >
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-              <input
-                type="text"
-                value={gameName}
-                onChange={(e) => setGameName(e.target.value)}
-                placeholder="Game name"
-                className="form-input sm:col-span-2"
-                autoFocus
-              />
+              <div className="relative sm:col-span-2" ref={dropdownRef}>
+                {selectedGame ? (
+                  <div className="form-input flex items-center gap-2">
+                    {selectedGame.imageUrl && (
+                      <img
+                        src={selectedGame.imageUrl}
+                        alt=""
+                        className="w-6 h-6 rounded object-cover flex-shrink-0"
+                      />
+                    )}
+                    <span className="truncate text-white text-sm flex-1">
+                      {selectedGame.name}
+                    </span>
+                    <span className="text-[10px] text-gray-500 flex-shrink-0">
+                      {selectedGame.provider}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearSelectedGame}
+                      className="text-gray-500 hover:text-white flex-shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                      type="text"
+                      value={gameName}
+                      onChange={(e) => {
+                        setGameName(e.target.value);
+                        searchGames(e.target.value);
+                      }}
+                      placeholder="Search games..."
+                      className="form-input pl-9 w-full"
+                      autoFocus
+                    />
+                  </div>
+                )}
+
+                {/* Search Results Dropdown */}
+                {showResults && searchResults.length > 0 && (
+                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+                    {searchResults.map((game) => (
+                      <button
+                        key={game.slug}
+                        type="button"
+                        onClick={() => selectGame(game)}
+                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left"
+                      >
+                        {game.imageUrl ? (
+                          <img
+                            src={game.imageUrl}
+                            alt=""
+                            className="w-8 h-8 rounded object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded bg-white/5 flex-shrink-0" />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-white truncate">{game.name}</p>
+                          <p className="text-[10px] text-gray-500">{game.provider}</p>
+                        </div>
+                        {game.rtp && (
+                          <span className="text-[10px] text-gray-500 flex-shrink-0">
+                            {game.rtp}% RTP
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                    {/* Quick add option for unlisted games */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowResults(false);
+                        setSearchResults([]);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left border-t border-white/5"
+                    >
+                      <div className="w-8 h-8 rounded bg-white/5 flex items-center justify-center flex-shrink-0">
+                        <Plus size={14} className="text-gray-500" />
+                      </div>
+                      <p className="text-sm text-gray-400">
+                        Use &quot;{gameName}&quot; as custom name
+                      </p>
+                    </button>
+                  </div>
+                )}
+              </div>
               <input
                 type="number"
                 value={betSize}
@@ -346,14 +491,25 @@ export default function HuntControlPanel() {
                   {i + 1}
                 </div>
                 <div className="col-span-4 flex items-center gap-2 min-w-0">
-                  <span className="truncate text-white font-medium">
-                    {entry.gameName}
-                  </span>
-                  {entry.gameProvider && (
-                    <span className="text-[10px] text-gray-600 flex-shrink-0">
-                      {entry.gameProvider}
-                    </span>
+                  {entry.gameImage ? (
+                    <img
+                      src={entry.gameImage}
+                      alt=""
+                      className="w-7 h-7 rounded object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded bg-white/5 flex-shrink-0" />
                   )}
+                  <div className="min-w-0">
+                    <span className="truncate text-white font-medium block text-sm">
+                      {entry.gameName}
+                    </span>
+                    {entry.gameProvider && (
+                      <span className="text-[10px] text-gray-600 block">
+                        {entry.gameProvider}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="col-span-1 text-right text-gray-400">
                   ${parseFloat(entry.betSize).toFixed(2)}
