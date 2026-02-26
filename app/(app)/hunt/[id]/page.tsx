@@ -1056,12 +1056,12 @@ function EntryRow({
             {formatCurrency(result, cur)}
           </span>
         ) : huntStatus !== "completed" ? (
-          <span
-            className="text-gray-700 cursor-pointer hover:text-gray-400 transition-colors"
+          <div
+            className="inline-flex items-center justify-end w-24 bg-white/[0.03] border border-white/10 rounded-md px-2 py-1 text-sm text-gray-600 cursor-pointer hover:border-white/20 hover:text-gray-400 transition-all"
             onClick={() => { setRecordingId(entry.id); setResultValue(""); }}
           >
-            &mdash;
-          </span>
+            0.00
+          </div>
         ) : (
           <span className="text-gray-700">&mdash;</span>
         )}
