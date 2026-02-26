@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { Reorder } from "framer-motion";
 import {
   ArrowLeft,
   Plus,
@@ -16,6 +17,10 @@ import {
   Settings,
   ChevronDown,
   Trophy,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
+  Send,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -57,9 +62,13 @@ interface Hunt {
   totalBet: string;
   totalWon: string;
   currency: string;
+  discordWebhook: string | null;
   shareSlug: string;
   entries: HuntEntry[];
 }
+
+type SortField = "position" | "bet" | "won" | "multi";
+type SortDirection = "asc" | "desc";
 
 export default function HuntControlPanel() {
   const params = useParams();
@@ -75,6 +84,7 @@ export default function HuntControlPanel() {
   const [settingsDesc, setSettingsDesc] = useState("");
   const [settingsBalance, setSettingsBalance] = useState("");
   const [settingsCurrency, setSettingsCurrency] = useState("USD");
+  const [settingsWebhook, setSettingsWebhook] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Add entry form
@@ -93,6 +103,15 @@ export default function HuntControlPanel() {
   // Result recording
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [resultValue, setResultValue] = useState("");
+  const resultInputRef = useRef<HTMLInputElement>(null);
+
+  // Sorting
+  const [sortField, setSortField] = useState<SortField>("position");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  // Discord
+  const [discordSending, setDiscordSending] = useState(false);
+  const [discordSent, setDiscordSent] = useState(false);
 
   const fetchHunt = useCallback(async () => {
     const res = await fetch(`/api/hunts/${huntId}`);
@@ -102,11 +121,11 @@ export default function HuntControlPanel() {
     }
     const data = await res.json();
     setHunt(data);
-    // Sync settings form with fetched data
     setSettingsTitle(data.title);
     setSettingsDesc(data.description || "");
     setSettingsBalance(data.startBalance ? String(parseFloat(data.startBalance)) : "");
     setSettingsCurrency(data.currency || "USD");
+    setSettingsWebhook(data.discordWebhook || "");
     setLoading(false);
   }, [huntId, router]);
 
@@ -190,8 +209,6 @@ export default function HuntControlPanel() {
     fetchHunt();
   };
 
-  const resultInputRef = useRef<HTMLInputElement>(null);
-
   const recordResult = async (entryId: string) => {
     if (!resultValue) return;
     await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
@@ -199,7 +216,6 @@ export default function HuntControlPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ result: parseFloat(resultValue) }),
     });
-    // Find the next unrecorded entry
     const currentIndex = hunt?.entries.findIndex((e) => e.id === entryId) ?? -1;
     const nextEntry = hunt?.entries.slice(currentIndex + 1).find((e) => e.status !== "completed");
     setResultValue("");
@@ -238,6 +254,7 @@ export default function HuntControlPanel() {
         description: settingsDesc.trim() || null,
         startBalance: settingsBalance ? parseFloat(settingsBalance) : null,
         currency: settingsCurrency,
+        discordWebhook: settingsWebhook.trim() || null,
       }),
     });
     setSavingSettings(false);
@@ -249,6 +266,103 @@ export default function HuntControlPanel() {
     if (!hunt) return;
     const url = `${window.location.origin}/hunt/${hunt.id}/live`;
     navigator.clipboard.writeText(url);
+  };
+
+  // Sorting
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === "desc") {
+        setSortDirection("asc");
+      } else {
+        setSortField("position");
+        setSortDirection("asc");
+      }
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  const sortedEntries = useMemo(() => {
+    if (!hunt) return [];
+    const entries = [...hunt.entries];
+    if (sortField === "position") {
+      return sortDirection === "asc"
+        ? entries.sort((a, b) => a.position - b.position)
+        : entries.sort((a, b) => b.position - a.position);
+    }
+    const getValue = (e: HuntEntry): number => {
+      switch (sortField) {
+        case "bet": return parseFloat(e.betSize);
+        case "won": return e.result ? parseFloat(e.result) : -Infinity;
+        case "multi": return e.multiplier ? parseFloat(e.multiplier) : -Infinity;
+        default: return e.position;
+      }
+    };
+    return entries.sort((a, b) =>
+      sortDirection === "asc" ? getValue(a) - getValue(b) : getValue(b) - getValue(a)
+    );
+  }, [hunt, sortField, sortDirection]);
+
+  // Drag-and-drop reorder
+  const handleReorder = (newOrder: HuntEntry[]) => {
+    setHunt((prev) =>
+      prev ? { ...prev, entries: newOrder.map((e, i) => ({ ...e, position: i })) } : prev
+    );
+    fetch(`/api/hunts/${huntId}/entries/reorder`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order: newOrder.map((e) => e.id) }),
+    });
+  };
+
+  // Discord webhook
+  const sendToDiscord = async () => {
+    if (!hunt || !hunt.discordWebhook || discordSending) return;
+    setDiscordSending(true);
+
+    const top5 = [...hunt.entries]
+      .filter((e) => e.result)
+      .sort((a, b) => parseFloat(b.result!) - parseFloat(a.result!))
+      .slice(0, 5);
+
+    const cur = hunt.currency || "USD";
+    const completedEntries = hunt.entries.filter((e) => e.status === "completed");
+    const totalBet = completedEntries.reduce((s, e) => s + parseFloat(e.betSize), 0);
+    const totalWon = completedEntries.reduce((s, e) => s + (e.result ? parseFloat(e.result) : 0), 0);
+    const profit = totalWon - totalBet;
+
+    const topWinsText = top5.length > 0
+      ? top5.map((e, i) => `${i + 1}. ${e.gameName} — ${formatCurrency(e.result!, cur)} (${e.multiplier ? formatMultiplier(e.multiplier) : "—"})`).join("\n")
+      : "No results yet";
+
+    const viewerUrl = `${window.location.origin}/hunt/${hunt.id}/live`;
+
+    try {
+      await fetch(hunt.discordWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          embeds: [{
+            title: `🎰 ${hunt.title}`,
+            url: viewerUrl,
+            color: profit >= 0 ? 5763719 : 15548997,
+            fields: [
+              { name: "💰 Total Bet", value: formatCurrency(totalBet, cur), inline: true },
+              { name: "🎉 Total Won", value: formatCurrency(totalWon, cur), inline: true },
+              { name: profit >= 0 ? "📈 Profit" : "📉 Loss", value: `${profit >= 0 ? "+" : ""}${formatCurrency(profit, cur)}`, inline: true },
+              { name: "🏆 Top Wins", value: topWinsText },
+            ],
+            footer: { text: "BonusHunt Tracker by Sucks Media" },
+          }],
+        }),
+      });
+      setDiscordSent(true);
+      setTimeout(() => setDiscordSent(false), 3000);
+    } catch {
+      // Silently fail — webhook URL may be invalid
+    }
+    setDiscordSending(false);
   };
 
   if (loading) {
@@ -291,6 +405,11 @@ export default function HuntControlPanel() {
     : null;
   const wins = completedEntries.filter((e) => e.result && parseFloat(e.result) > parseFloat(e.betSize)).length;
   const losses = completed - wins;
+  const isDraggable = sortField === "position" && sortDirection === "asc";
+  const showActions = hunt.status !== "completed";
+  const gridCols = showActions
+    ? "grid-cols-[40px_1fr_96px_112px_80px_64px]"
+    : "grid-cols-[40px_1fr_96px_112px_80px]";
 
   return (
     <div>
@@ -363,6 +482,21 @@ export default function HuntControlPanel() {
             <Copy size={14} />
             Share
           </button>
+          {hunt.discordWebhook && (
+            <button
+              onClick={sendToDiscord}
+              disabled={discordSending}
+              className={`flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-lg text-sm transition-all ${
+                discordSent
+                  ? "text-green-400 border-green-500/20"
+                  : "text-gray-400 hover:text-white hover:bg-white/10"
+              }`}
+              title="Send results to Discord"
+            >
+              <Send size={14} />
+              {discordSending ? "Sending..." : discordSent ? "Sent!" : "Discord"}
+            </button>
+          )}
           <Link
             href={`/hunt/${hunt.id}/live`}
             target="_blank"
@@ -386,7 +520,6 @@ export default function HuntControlPanel() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-            {/* Name */}
             <div>
               <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
                 Name
@@ -399,12 +532,8 @@ export default function HuntControlPanel() {
                 className="form-input"
                 required
               />
-              <p className="text-[10px] text-gray-600 mt-1">
-                Visible to viewers.
-              </p>
+              <p className="text-[10px] text-gray-600 mt-1">Visible to viewers.</p>
             </div>
-
-            {/* Description */}
             <div>
               <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
                 Description
@@ -416,14 +545,11 @@ export default function HuntControlPanel() {
                 placeholder="Brief description"
                 className="form-input"
               />
-              <p className="text-[10px] text-gray-600 mt-1">
-                Optional. Visible to viewers.
-              </p>
+              <p className="text-[10px] text-gray-600 mt-1">Optional. Visible to viewers.</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-5">
-            {/* Start Balance */}
+          <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
                 Start Balance
@@ -441,12 +567,8 @@ export default function HuntControlPanel() {
                   {sym}
                 </span>
               </div>
-              <p className="text-[10px] text-gray-600 mt-1">
-                Starting casino balance.
-              </p>
+              <p className="text-[10px] text-gray-600 mt-1">Starting casino balance.</p>
             </div>
-
-            {/* Currency */}
             <div>
               <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
                 Currency
@@ -468,10 +590,24 @@ export default function HuntControlPanel() {
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
                 />
               </div>
-              <p className="text-[10px] text-gray-600 mt-1">
-                Currency for this hunt.
-              </p>
+              <p className="text-[10px] text-gray-600 mt-1">Currency for this hunt.</p>
             </div>
+          </div>
+
+          <div className="mb-5">
+            <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+              Discord Webhook
+            </label>
+            <input
+              type="url"
+              value={settingsWebhook}
+              onChange={(e) => setSettingsWebhook(e.target.value)}
+              placeholder="https://discord.com/api/webhooks/..."
+              className="form-input"
+            />
+            <p className="text-[10px] text-gray-600 mt-1">
+              Paste a Discord webhook URL to send results to your server.
+            </p>
           </div>
 
           <button
@@ -488,9 +624,7 @@ export default function HuntControlPanel() {
       <div className={`grid gap-3 mb-6 ${startBal != null ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"}`}>
         {startBal != null && (
           <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
-              Start Balance
-            </p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Start Balance</p>
             <p className="font-outfit text-lg font-bold text-white">
               {formatCurrency(startBal, cur)}
             </p>
@@ -510,12 +644,8 @@ export default function HuntControlPanel() {
             key={stat.label}
             className="glass-card rounded-lg p-3 border border-white/5 text-center"
           >
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
-              {stat.label}
-            </p>
-            <p className={`font-outfit text-lg font-bold ${stat.color}`}>
-              {stat.value}
-            </p>
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{stat.label}</p>
+            <p className={`font-outfit text-lg font-bold ${stat.color}`}>{stat.value}</p>
           </div>
         ))}
       </div>
@@ -527,28 +657,15 @@ export default function HuntControlPanel() {
           className="glass-card rounded-xl border border-white/5 p-4 mb-3 relative z-20"
         >
           <div className="flex flex-col sm:flex-row gap-3">
-            {/* Game Search */}
             <div className="relative flex-1 min-w-0" ref={dropdownRef}>
               {selectedGame ? (
                 <div className="form-input flex items-center gap-2">
                   {selectedGame.imageUrl && (
-                    <img
-                      src={selectedGame.imageUrl}
-                      alt=""
-                      className="w-8 h-8 rounded object-cover flex-shrink-0"
-                    />
+                    <img src={selectedGame.imageUrl} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
                   )}
-                  <span className="truncate text-white text-sm flex-1">
-                    {selectedGame.name}
-                  </span>
-                  <span className="text-[10px] text-gray-500 flex-shrink-0">
-                    {selectedGame.provider}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={clearSelectedGame}
-                    className="text-gray-500 hover:text-white flex-shrink-0"
-                  >
+                  <span className="truncate text-white text-sm flex-1">{selectedGame.name}</span>
+                  <span className="text-[10px] text-gray-500 flex-shrink-0">{selectedGame.provider}</span>
+                  <button type="button" onClick={clearSelectedGame} className="text-gray-500 hover:text-white flex-shrink-0">
                     <X size={14} />
                   </button>
                 </div>
@@ -569,7 +686,6 @@ export default function HuntControlPanel() {
                 </div>
               )}
 
-              {/* Search Results Dropdown */}
               {showResults && searchResults.length > 0 && (
                 <div className="absolute z-[100] top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
                   {searchResults.map((game) => (
@@ -580,11 +696,7 @@ export default function HuntControlPanel() {
                       className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left"
                     >
                       {game.imageUrl ? (
-                        <img
-                          src={game.imageUrl}
-                          alt=""
-                          className="w-10 h-10 rounded object-cover flex-shrink-0"
-                        />
+                        <img src={game.imageUrl} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
                       ) : (
                         <div className="w-10 h-10 rounded bg-white/5 flex-shrink-0" />
                       )}
@@ -593,32 +705,24 @@ export default function HuntControlPanel() {
                         <p className="text-[10px] text-gray-500">{game.provider}</p>
                       </div>
                       {game.rtp && (
-                        <span className="text-[10px] text-gray-500 flex-shrink-0">
-                          {game.rtp}% RTP
-                        </span>
+                        <span className="text-[10px] text-gray-500 flex-shrink-0">{game.rtp}% RTP</span>
                       )}
                     </button>
                   ))}
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowResults(false);
-                      setSearchResults([]);
-                    }}
+                    onClick={() => { setShowResults(false); setSearchResults([]); }}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left border-t border-white/5"
                   >
                     <div className="w-10 h-10 rounded bg-white/5 flex items-center justify-center flex-shrink-0">
                       <Plus size={14} className="text-gray-500" />
                     </div>
-                    <p className="text-sm text-gray-400">
-                      Use &quot;{gameName}&quot; as custom name
-                    </p>
+                    <p className="text-sm text-gray-400">Use &quot;{gameName}&quot; as custom name</p>
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Bet Size */}
             <input
               type="number"
               value={betSize}
@@ -628,8 +732,6 @@ export default function HuntControlPanel() {
               step="0.01"
               required
             />
-
-            {/* Submit */}
             <button
               type="submit"
               disabled={adding || !gameName.trim() || !betSize}
@@ -665,199 +767,107 @@ export default function HuntControlPanel() {
             No games added yet. Click &quot;Add Game&quot; to get started.
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="bg-white/[0.02] border-b border-white/5">
-                <th className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-10">#</th>
-                <th className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium py-2.5">Game</th>
-                <th className="text-right text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-24">Bet</th>
-                <th className="text-right text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-28">Won</th>
-                <th className="text-right text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 w-20">Multi</th>
-                {hunt.status !== "completed" && (
-                  <th className="w-16 px-4 py-2.5" />
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {/* Best Win Row */}
-              {biggestWin && biggestWin.amount > 0 && (
-                <tr className="bg-yellow-500/[0.04] border-b border-yellow-500/10">
-                  <td className="px-4 py-2.5 text-yellow-500">
-                    <Trophy size={14} />
-                  </td>
-                  <td className="py-2.5 pr-4">
-                    <div className="flex items-center gap-2 min-w-0">
-                      {biggestWin.image && (
-                        <img src={biggestWin.image} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0" />
-                      )}
-                      <div className="min-w-0">
-                        <span className="text-yellow-400 font-medium text-xs block truncate">
-                          Best Win — {biggestWin.name}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-xs text-yellow-400/60">
-                    {formatCurrency(biggestWin.bet, cur)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-xs text-yellow-400 font-semibold">
-                    {formatCurrency(biggestWin.amount, cur)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-xs text-yellow-400 font-semibold">
-                    {biggestWin.multi ? formatMultiplier(biggestWin.multi) : "—"}
-                  </td>
-                  {hunt.status !== "completed" && <td />}
-                </tr>
-              )}
-              {hunt.entries.map((entry, i) => {
-                const cost = parseFloat(entry.cost);
-                const result = entry.result !== null ? parseFloat(entry.result) : null;
-                const multi = entry.multiplier ? parseFloat(entry.multiplier) : null;
-                const isProfit = result !== null && result > cost;
-                const isLoss = result !== null && result <= cost;
+          <>
+            {/* Header Row */}
+            <div className={`grid ${gridCols} bg-white/[0.02] border-b border-white/5 items-center`}>
+              <div
+                className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5 cursor-pointer hover:text-gray-300 transition-colors"
+                onClick={() => { setSortField("position"); setSortDirection("asc"); }}
+                title="Reset to default order"
+              >
+                #
+              </div>
+              <div className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium py-2.5">
+                Game
+              </div>
+              <SortHeader label="Bet" field="bet" current={sortField} direction={sortDirection} onSort={handleSort} className="text-right px-4 py-2.5" />
+              <SortHeader label="Won" field="won" current={sortField} direction={sortDirection} onSort={handleSort} className="text-right px-4 py-2.5" />
+              <SortHeader label="Multi" field="multi" current={sortField} direction={sortDirection} onSort={handleSort} className="text-right px-4 py-2.5" />
+              {showActions && <div className="px-4 py-2.5" />}
+            </div>
 
-                return (
-                  <tr
-                    key={entry.id}
-                    className={`border-b border-white/5 last:border-b-0 transition-colors ${
-                      entry.status === "playing"
-                        ? "bg-red-500/5 border-l-2 border-l-red-500"
-                        : isProfit
-                        ? "border-l-2 border-l-green-500/40"
-                        : isLoss
-                        ? "border-l-2 border-l-red-500/30"
-                        : ""
-                    }`}
-                  >
-                    {/* # */}
-                    <td className="px-4 py-3 text-gray-600 text-xs font-mono">
-                      {i + 1}
-                    </td>
-
-                    {/* Game */}
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {entry.gameImage && (
-                          <img
-                            src={entry.gameImage}
-                            alt=""
-                            className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <span className="text-white font-medium text-sm block truncate">
-                            {entry.gameName}
-                          </span>
-                          {entry.gameProvider && (
-                            <span className="text-[10px] text-gray-600 block">
-                              {entry.gameProvider}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Bet */}
-                    <td className="px-4 py-3 text-right text-sm text-gray-400">
-                      {formatCurrency(entry.betSize, cur)}
-                    </td>
-
-                    {/* Won */}
-                    <td className="px-4 py-3 text-right text-sm">
-                      {recordingId === entry.id ? (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            recordResult(entry.id);
-                          }}
-                          className="flex items-center gap-1 justify-end"
-                        >
-                          <input
-                            ref={resultInputRef}
-                            type="number"
-                            value={resultValue}
-                            onChange={(e) => setResultValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Escape") {
-                                setRecordingId(null);
-                                setResultValue("");
-                              }
-                            }}
-                            className="w-24 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-sm text-right text-white focus:border-red-500/50 focus:outline-none"
-                            step="0.01"
-                            autoFocus
-                            placeholder="0.00"
-                          />
-                          <button
-                            type="submit"
-                            className="text-green-400 hover:text-green-300 text-xs font-medium ml-1"
-                          >
-                            OK
-                          </button>
-                        </form>
-                      ) : result !== null ? (
-                        <span
-                          className={`font-semibold cursor-pointer hover:opacity-80 ${
-                            isProfit ? "text-green-400" : "text-red-400"
-                          }`}
-                          onClick={() => {
-                            setRecordingId(entry.id);
-                            setResultValue(entry.result || "");
-                          }}
-                        >
-                          {formatCurrency(result, cur)}
-                        </span>
-                      ) : hunt.status !== "completed" ? (
-                        <span
-                          className="text-gray-700 cursor-pointer hover:text-gray-400 transition-colors"
-                          onClick={() => {
-                            setRecordingId(entry.id);
-                            setResultValue("");
-                          }}
-                        >
-                          &mdash;
-                        </span>
-                      ) : (
-                        <span className="text-gray-700">&mdash;</span>
-                      )}
-                    </td>
-
-                    {/* Multi */}
-                    <td className="px-4 py-3 text-right text-sm">
-                      {multi !== null ? (
-                        <span
-                          className={`font-semibold ${
-                            multi > 1 ? "text-green-400" : "text-red-400"
-                          }`}
-                        >
-                          {formatMultiplier(multi)}
-                        </span>
-                      ) : entry.status === "playing" ? (
-                        <span className="text-red-400 text-xs font-medium animate-pulse">
-                          LIVE
-                        </span>
-                      ) : (
-                        <span className="text-gray-700">&mdash;</span>
-                      )}
-                    </td>
-
-                    {/* Actions */}
-                    {hunt.status !== "completed" && (
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => deleteEntry(entry.id)}
-                          className="text-gray-700 hover:text-red-400 transition-colors"
-                          title="Remove"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
+            {/* Best Win Row */}
+            {biggestWin && biggestWin.amount > 0 && (
+              <div className={`grid ${gridCols} bg-yellow-500/[0.04] border-b border-yellow-500/10 items-center`}>
+                <div className="px-4 py-2.5 text-yellow-500">
+                  <Trophy size={14} />
+                </div>
+                <div className="py-2.5 pr-4">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {biggestWin.image && (
+                      <img src={biggestWin.image} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0" />
                     )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    <span className="text-yellow-400 font-medium text-xs truncate">
+                      Best Win — {biggestWin.name}
+                    </span>
+                  </div>
+                </div>
+                <div className="px-4 py-2.5 text-right text-xs text-yellow-400/60">
+                  {formatCurrency(biggestWin.bet, cur)}
+                </div>
+                <div className="px-4 py-2.5 text-right text-xs text-yellow-400 font-semibold">
+                  {formatCurrency(biggestWin.amount, cur)}
+                </div>
+                <div className="px-4 py-2.5 text-right text-xs text-yellow-400 font-semibold">
+                  {biggestWin.multi ? formatMultiplier(biggestWin.multi) : "—"}
+                </div>
+                {showActions && <div />}
+              </div>
+            )}
+
+            {/* Entry Rows */}
+            {isDraggable ? (
+              <Reorder.Group axis="y" values={sortedEntries} onReorder={handleReorder} as="div">
+                {sortedEntries.map((entry, i) => (
+                  <Reorder.Item
+                    key={entry.id}
+                    value={entry}
+                    as="div"
+                    whileDrag={{ scale: 1.01, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", zIndex: 50 }}
+                  >
+                    <EntryRow
+                      entry={entry}
+                      index={i}
+                      cur={cur}
+                      gridCols={gridCols}
+                      showActions={showActions}
+                      recordingId={recordingId}
+                      resultValue={resultValue}
+                      resultInputRef={resultInputRef}
+                      setRecordingId={setRecordingId}
+                      setResultValue={setResultValue}
+                      recordResult={recordResult}
+                      deleteEntry={deleteEntry}
+                      huntStatus={hunt.status}
+                      draggable
+                    />
+                  </Reorder.Item>
+                ))}
+              </Reorder.Group>
+            ) : (
+              <div>
+                {sortedEntries.map((entry, i) => (
+                  <EntryRow
+                    key={entry.id}
+                    entry={entry}
+                    index={i}
+                    cur={cur}
+                    gridCols={gridCols}
+                    showActions={showActions}
+                    recordingId={recordingId}
+                    resultValue={resultValue}
+                    resultInputRef={resultInputRef}
+                    setRecordingId={setRecordingId}
+                    setResultValue={setResultValue}
+                    recordResult={recordResult}
+                    deleteEntry={deleteEntry}
+                    huntStatus={hunt.status}
+                    draggable={false}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {/* Game Stats */}
@@ -875,24 +885,213 @@ export default function HuntControlPanel() {
               <span className="flex items-center gap-1">
                 <Trophy size={12} className="text-yellow-400" />
                 Biggest win{" "}
-                <span className="text-green-400 font-medium">
-                  {formatCurrency(biggestWin.amount, cur)}
-                </span>
+                <span className="text-green-400 font-medium">{formatCurrency(biggestWin.amount, cur)}</span>
                 <span className="text-gray-600">({biggestWin.name})</span>
               </span>
             )}
             {bestMulti && bestMulti.value > 0 && (
               <span>
                 Best multi{" "}
-                <span className="text-yellow-400 font-medium">
-                  {formatMultiplier(bestMulti.value)}
-                </span>
+                <span className="text-yellow-400 font-medium">{formatMultiplier(bestMulti.value)}</span>
                 <span className="text-gray-600"> ({bestMulti.name})</span>
               </span>
             )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ─── Sort Header ─── */
+
+function SortHeader({
+  label,
+  field,
+  current,
+  direction,
+  onSort,
+  className,
+}: {
+  label: string;
+  field: SortField;
+  current: SortField;
+  direction: SortDirection;
+  onSort: (field: SortField) => void;
+  className?: string;
+}) {
+  const isActive = current === field;
+  return (
+    <div
+      className={`text-[11px] text-gray-500 uppercase tracking-wider font-medium cursor-pointer select-none hover:text-gray-300 transition-colors group ${className || ""}`}
+      onClick={() => onSort(field)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {isActive ? (
+          direction === "desc" ? (
+            <ArrowDown size={10} className="text-red-400" />
+          ) : (
+            <ArrowUp size={10} className="text-red-400" />
+          )
+        ) : (
+          <ArrowDown size={10} className="text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
+      </span>
+    </div>
+  );
+}
+
+/* ─── Entry Row ─── */
+
+function EntryRow({
+  entry,
+  index,
+  cur,
+  gridCols,
+  showActions,
+  recordingId,
+  resultValue,
+  resultInputRef,
+  setRecordingId,
+  setResultValue,
+  recordResult,
+  deleteEntry,
+  huntStatus,
+  draggable,
+}: {
+  entry: HuntEntry;
+  index: number;
+  cur: string;
+  gridCols: string;
+  showActions: boolean;
+  recordingId: string | null;
+  resultValue: string;
+  resultInputRef: React.RefObject<HTMLInputElement | null>;
+  setRecordingId: (id: string | null) => void;
+  setResultValue: (v: string) => void;
+  recordResult: (id: string) => void;
+  deleteEntry: (id: string) => void;
+  huntStatus: string;
+  draggable: boolean;
+}) {
+  const cost = parseFloat(entry.cost);
+  const result = entry.result !== null ? parseFloat(entry.result) : null;
+  const multi = entry.multiplier ? parseFloat(entry.multiplier) : null;
+  const isProfit = result !== null && result > cost;
+  const isLoss = result !== null && result <= cost;
+
+  return (
+    <div
+      className={`grid ${gridCols} items-center border-b border-white/5 last:border-b-0 transition-colors ${
+        entry.status === "playing"
+          ? "bg-red-500/5 border-l-2 border-l-red-500"
+          : isProfit
+          ? "border-l-2 border-l-green-500/40"
+          : isLoss
+          ? "border-l-2 border-l-red-500/30"
+          : ""
+      }`}
+    >
+      {/* # */}
+      <div className="px-4 py-3 text-gray-600 text-xs font-mono flex items-center gap-1">
+        {draggable && (
+          <GripVertical size={12} className="text-gray-700 cursor-grab flex-shrink-0" />
+        )}
+        {index + 1}
+      </div>
+
+      {/* Game */}
+      <div className="py-3 pr-4">
+        <div className="flex items-center gap-3 min-w-0">
+          {entry.gameImage && (
+            <img src={entry.gameImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+          )}
+          <div className="min-w-0">
+            <span className="text-white font-medium text-sm block truncate">{entry.gameName}</span>
+            {entry.gameProvider && (
+              <span className="text-[10px] text-gray-600 block">{entry.gameProvider}</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bet */}
+      <div className="px-4 py-3 text-right text-sm text-gray-400">
+        {formatCurrency(entry.betSize, cur)}
+      </div>
+
+      {/* Won */}
+      <div className="px-4 py-3 text-right text-sm">
+        {recordingId === entry.id ? (
+          <form
+            onSubmit={(e) => { e.preventDefault(); recordResult(entry.id); }}
+            className="flex items-center gap-1 justify-end"
+          >
+            <input
+              ref={resultInputRef}
+              type="number"
+              value={resultValue}
+              onChange={(e) => setResultValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setRecordingId(null);
+                  setResultValue("");
+                }
+              }}
+              className="w-24 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-sm text-right text-white focus:border-red-500/50 focus:outline-none"
+              step="0.01"
+              autoFocus
+              placeholder="0.00"
+            />
+            <button type="submit" className="text-green-400 hover:text-green-300 text-xs font-medium ml-1">
+              OK
+            </button>
+          </form>
+        ) : result !== null ? (
+          <span
+            className={`font-semibold cursor-pointer hover:opacity-80 ${isProfit ? "text-green-400" : "text-red-400"}`}
+            onClick={() => { setRecordingId(entry.id); setResultValue(entry.result || ""); }}
+          >
+            {formatCurrency(result, cur)}
+          </span>
+        ) : huntStatus !== "completed" ? (
+          <span
+            className="text-gray-700 cursor-pointer hover:text-gray-400 transition-colors"
+            onClick={() => { setRecordingId(entry.id); setResultValue(""); }}
+          >
+            &mdash;
+          </span>
+        ) : (
+          <span className="text-gray-700">&mdash;</span>
+        )}
+      </div>
+
+      {/* Multi */}
+      <div className="px-4 py-3 text-right text-sm">
+        {multi !== null ? (
+          <span className={`font-semibold ${multi > 1 ? "text-green-400" : "text-red-400"}`}>
+            {formatMultiplier(multi)}
+          </span>
+        ) : entry.status === "playing" ? (
+          <span className="text-red-400 text-xs font-medium animate-pulse">LIVE</span>
+        ) : (
+          <span className="text-gray-700">&mdash;</span>
+        )}
+      </div>
+
+      {/* Actions */}
+      {showActions && (
+        <div className="px-4 py-3 text-right">
+          <button
+            onClick={() => deleteEntry(entry.id)}
+            className="text-gray-700 hover:text-red-400 transition-colors"
+            title="Remove"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

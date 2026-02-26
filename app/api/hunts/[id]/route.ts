@@ -50,6 +50,8 @@ export async function PATCH(
   if (body.startBalance !== undefined)
     data.startBalance = body.startBalance != null ? parseFloat(body.startBalance) : null;
   if (body.currency !== undefined) data.currency = body.currency;
+  if (body.discordWebhook !== undefined)
+    data.discordWebhook = body.discordWebhook?.trim() || null;
   if (body.status !== undefined) {
     if (!["preparing", "live", "completed"].includes(body.status)) {
       return badRequest("Invalid status");

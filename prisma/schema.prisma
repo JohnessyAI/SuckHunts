@@ -78,8 +78,9 @@ model Hunt {
   startBalance Decimal?
   totalCost    Decimal     @default(0)
   totalWon     Decimal     @default(0)
-  currency     String      @default("USD")
-  shareSlug    String      @unique
+  currency       String      @default("USD")
+  discordWebhook String?
+  shareSlug      String      @unique
   startedAt    DateTime?
   completedAt  DateTime?
   entries      HuntEntry[]
