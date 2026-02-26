@@ -479,6 +479,15 @@ export default function HuntControlPanel() {
               End Hunt
             </button>
           )}
+          {hunt.status === "completed" && (
+            <button
+              onClick={() => updateHuntStatus("live")}
+              className="flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:scale-105 transition-all shadow-lg shadow-red-500/25"
+            >
+              <Play size={14} />
+              Reopen Hunt
+            </button>
+          )}
           <button
             onClick={copyShareLink}
             className="flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 px-4 py-2 rounded-lg text-sm hover:text-white hover:bg-white/10 transition-all"
