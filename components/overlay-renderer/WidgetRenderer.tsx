@@ -142,14 +142,17 @@ function HuntTableWidget({
   config,
   entries,
   width,
+  height,
   isEditor,
 }: {
   config: Record<string, unknown>;
   entries: HuntEntry[];
   width: number;
+  height: number;
   isEditor?: boolean;
 }) {
-  const fontSize = c(config, "fontSize", 14) as number ?? 14;
+  // Scale font to widget — constrained by both width and height
+  const fontSize = Math.max(10, Math.min(width * 0.035, height * 0.04, 20));
   const autoScroll = c(config, "autoScroll", true) as boolean;
   const scrollSpeed = c(config, "scrollSpeed", 30) as number ?? 30;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -158,11 +161,10 @@ function HuntTableWidget({
   const [containerH, setContainerH] = useState(0);
   const ROW_GAP = 2; // px between rows
 
-  // Responsive: hide columns when too narrow
-  const compact = width < 300;
-  const showCost = !compact && c(config, "showCost");
+  // Responsive: progressively hide columns as width shrinks
+  const showCost = width >= 350 && c(config, "showCost");
   const showResult = c(config, "showResult");
-  const showMultiplier = !compact && c(config, "showMultiplier");
+  const showMultiplier = width >= 300 && c(config, "showMultiplier");
 
   useEffect(() => {
     if (!singleSetRef.current || !containerRef.current) return;
@@ -554,7 +556,7 @@ function WidgetContent({
 
   switch (type) {
     case "hunt-table": {
-      return <HuntTableWidget config={config} entries={entries} width={width} isEditor={isEditor} />;
+      return <HuntTableWidget config={config} entries={entries} width={width} height={height} isEditor={isEditor} />;
     }
 
     case "current-game": {
@@ -572,8 +574,9 @@ function WidgetContent({
 
     case "biggest-win": {
       if (!bestEntry) return placeholder("Biggest Win");
-      // Scale font to fill the widget — constrained by both width and height
-      const mainSize = Math.max(14, Math.min(width * 0.14, height * 0.25));
+      // Scale font to fill — constrained by both width and height
+      const showGame = c(config, "showGame") as boolean;
+      const mainSize = Math.max(14, Math.min(width * 0.14, height * (showGame ? 0.3 : 0.45)));
       const subSize = Math.max(10, mainSize * 0.45);
       return (
         <div className="flex items-center justify-center h-full w-full px-4">
@@ -592,23 +595,23 @@ function WidgetContent({
     }
 
     case "running-totals": {
-      // Auto-switch layout based on aspect ratio
-      const configLayout = c(config, "layout");
+      // Auto-switch layout based on aspect ratio (default: auto)
+      const configLayout = c(config, "layout", "auto");
       const isHorizontal = configLayout === "horizontal"
         ? true
         : configLayout === "vertical"
         ? false
-        : width > height * 1.5;
+        : width > height * 1.2; // auto: landscape → horizontal, portrait → vertical
 
       // Count visible stats to compute per-item space
       const showProfit = c(config, "showProfit") as boolean;
       const showAvg = c(config, "showAvg") as boolean;
       const statCount = 2 + (showProfit ? 1 : 0) + (showAvg ? 1 : 0);
 
-      // Scale font to fill: divide by stat count, constrained by both axes
+      // Scale font to fill: divide by stat count, constrained by BOTH axes
       const perItemW = isHorizontal ? width / statCount : width;
       const perItemH = isHorizontal ? height : height / statCount;
-      const valSize = Math.max(12, Math.min(perItemW * 0.18, perItemH * 0.4));
+      const valSize = Math.max(12, Math.min(perItemW * 0.18, perItemH * 0.35));
       const labelSize = Math.max(8, valSize * 0.5);
 
       return (
@@ -646,8 +649,29 @@ function WidgetContent({
       const done = completed.length;
       const pct = total > 0 ? (done / total) * 100 : 0;
       const barColor = c(config, "barColor", "#ef4444") as string ?? "#ef4444";
-      const barH = Math.max(4, Math.min(height * 0.3, 20));
-      const labelSize = Math.max(9, Math.min(width * 0.04, height * 0.2, 16));
+      const isVerticalBar = height > width * 2;
+      const barThickness = Math.max(4, Math.min(Math.min(width, height) * 0.3, 24));
+      const labelSize = Math.max(9, Math.min(width * 0.04, height * 0.06, 16));
+
+      if (isVerticalBar) {
+        return (
+          <div className="flex flex-row items-center justify-center w-full h-full py-4 gap-2">
+            {c(config, "showLabel") && width >= 60 && (
+              <div className="flex flex-col items-center text-white/50" style={{ fontSize: labelSize }}>
+                <span style={{ writingMode: "vertical-lr", transform: "rotate(180deg)" }}>Progress</span>
+                {c(config, "showCount") && <span className="mt-1">{done}/{total}</span>}
+              </div>
+            )}
+            <div className="bg-white/10 rounded-full overflow-hidden relative" style={{ width: barThickness, height: "100%" }}>
+              <div
+                className="absolute bottom-0 w-full rounded-full transition-all duration-500"
+                style={{ height: `${pct}%`, backgroundColor: barColor }}
+              />
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="flex flex-col justify-center h-full px-4">
           {c(config, "showLabel") && height >= 40 && (
@@ -656,7 +680,7 @@ function WidgetContent({
               {c(config, "showCount") && <span>{done}/{total}</span>}
             </div>
           )}
-          <div className="bg-white/10 rounded-full overflow-hidden" style={{ height: barH }}>
+          <div className="bg-white/10 rounded-full overflow-hidden" style={{ height: barThickness }}>
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${pct}%`, backgroundColor: barColor }}

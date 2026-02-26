@@ -412,10 +412,11 @@ export default function WidgetConfigPanel({
           <div>
             <label className="text-[10px] text-gray-500 uppercase">Layout</label>
             <select
-              value={(config.layout as string) || "horizontal"}
+              value={(config.layout as string) || "auto"}
               onChange={(e) => onConfigChange("layout", e.target.value)}
               className="form-input text-xs py-1"
             >
+              <option value="auto">Auto (by aspect ratio)</option>
               <option value="horizontal">Horizontal</option>
               <option value="vertical">Vertical</option>
             </select>

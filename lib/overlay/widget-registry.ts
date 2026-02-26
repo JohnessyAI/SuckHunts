@@ -42,7 +42,7 @@ export const WIDGET_TYPES: WidgetType[] = [
     description: "Cost, Won, Profit, Avg Multiplier",
     defaultWidth: 500,
     defaultHeight: 80,
-    defaultConfig: { layout: "horizontal", showProfit: true, showAvg: true, fontSize: 16 },
+    defaultConfig: { layout: "auto", showProfit: true, showAvg: true, fontSize: 16 },
     category: "hunt",
   },
   {
