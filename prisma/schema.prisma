@@ -69,18 +69,21 @@ model User {
 // ─── Hunts ───
 
 model Hunt {
-  id          String      @id @default(uuid())
-  userId      String
-  user        User        @relation(fields: [userId], references: [id])
-  title       String
-  status      String      @default("preparing") // preparing | live | completed
-  totalCost   Decimal     @default(0)
-  totalWon    Decimal     @default(0)
-  shareSlug   String      @unique
-  startedAt   DateTime?
-  completedAt DateTime?
-  entries     HuntEntry[]
-  createdAt   DateTime    @default(now())
+  id           String      @id @default(uuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id])
+  title        String
+  description  String?
+  status       String      @default("preparing") // preparing | live | completed
+  startBalance Decimal?
+  totalCost    Decimal     @default(0)
+  totalWon     Decimal     @default(0)
+  currency     String      @default("USD")
+  shareSlug    String      @unique
+  startedAt    DateTime?
+  completedAt  DateTime?
+  entries      HuntEntry[]
+  createdAt    DateTime    @default(now())
 }
 
 model HuntEntry {

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
-  const { title } = await req.json();
+  const { title, description, startBalance, currency } = await req.json();
   if (!title?.trim()) return badRequest("Title is required");
 
   // Check hunt limit for free tier
@@ -64,6 +64,9 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       title: title.trim(),
       shareSlug,
+      ...(description && { description: description.trim() }),
+      ...(startBalance != null && { startBalance: parseFloat(startBalance) }),
+      ...(currency && { currency }),
     },
   });
 

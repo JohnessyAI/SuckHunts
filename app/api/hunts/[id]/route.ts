@@ -46,6 +46,10 @@ export async function PATCH(
   const data: Record<string, unknown> = {};
 
   if (body.title !== undefined) data.title = body.title.trim();
+  if (body.description !== undefined) data.description = body.description?.trim() || null;
+  if (body.startBalance !== undefined)
+    data.startBalance = body.startBalance != null ? parseFloat(body.startBalance) : null;
+  if (body.currency !== undefined) data.currency = body.currency;
   if (body.status !== undefined) {
     if (!["preparing", "live", "completed"].includes(body.status)) {
       return badRequest("Invalid status");

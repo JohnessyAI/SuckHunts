@@ -13,8 +13,15 @@ import {
   ExternalLink,
   X,
   Search,
+  Settings,
+  ChevronDown,
 } from "lucide-react";
-import { formatCurrency, formatMultiplier } from "@/lib/utils/format";
+import {
+  formatCurrency,
+  formatMultiplier,
+  currencySymbol,
+  SUPPORTED_CURRENCIES,
+} from "@/lib/utils/format";
 
 interface GameResult {
   slug: string;
@@ -43,9 +50,12 @@ interface HuntEntry {
 interface Hunt {
   id: string;
   title: string;
+  description: string | null;
   status: string;
+  startBalance: string | null;
   totalCost: string;
   totalWon: string;
+  currency: string;
   shareSlug: string;
   entries: HuntEntry[];
 }
@@ -57,6 +67,14 @@ export default function HuntControlPanel() {
 
   const [hunt, setHunt] = useState<Hunt | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Settings panel
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTitle, setSettingsTitle] = useState("");
+  const [settingsDesc, setSettingsDesc] = useState("");
+  const [settingsBalance, setSettingsBalance] = useState("");
+  const [settingsCurrency, setSettingsCurrency] = useState("USD");
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // Add entry form
   const [showAdd, setShowAdd] = useState(false);
@@ -82,7 +100,13 @@ export default function HuntControlPanel() {
       router.push("/dashboard");
       return;
     }
-    setHunt(await res.json());
+    const data = await res.json();
+    setHunt(data);
+    // Sync settings form with fetched data
+    setSettingsTitle(data.title);
+    setSettingsDesc(data.description || "");
+    setSettingsBalance(data.startBalance ? String(parseFloat(data.startBalance)) : "");
+    setSettingsCurrency(data.currency || "USD");
     setLoading(false);
   }, [huntId, router]);
 
@@ -198,6 +222,24 @@ export default function HuntControlPanel() {
     fetchHunt();
   };
 
+  const saveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSettings(true);
+    await fetch(`/api/hunts/${huntId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: settingsTitle.trim(),
+        description: settingsDesc.trim() || null,
+        startBalance: settingsBalance ? parseFloat(settingsBalance) : null,
+        currency: settingsCurrency,
+      }),
+    });
+    setSavingSettings(false);
+    setShowSettings(false);
+    fetchHunt();
+  };
+
   const copyShareLink = () => {
     if (!hunt) return;
     const url = `${window.location.origin}/hunt/${hunt.id}/live`;
@@ -214,9 +256,13 @@ export default function HuntControlPanel() {
 
   if (!hunt) return null;
 
+  const cur = hunt.currency || "USD";
+  const sym = currencySymbol(cur);
   const totalCost = parseFloat(hunt.totalCost);
   const totalWon = parseFloat(hunt.totalWon);
   const profit = totalWon - totalCost;
+  const startBal = hunt.startBalance ? parseFloat(hunt.startBalance) : null;
+  const currentBalance = startBal != null ? startBal - totalCost + totalWon : null;
   const completed = hunt.entries.filter((e) => e.status === "completed").length;
   const avgMultiplier =
     completed > 0
@@ -254,10 +300,22 @@ export default function HuntControlPanel() {
           </div>
           <p className="text-sm text-gray-500 mt-1">
             {hunt.entries.length} games &middot; {completed} completed
+            {hunt.description && (
+              <span> &middot; {hunt.description}</span>
+            )}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={`flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 px-4 py-2 rounded-lg text-sm hover:text-white hover:bg-white/10 transition-all ${
+              showSettings ? "text-white bg-white/10" : ""
+            }`}
+          >
+            <Settings size={14} />
+            Settings
+          </button>
           {hunt.status === "preparing" && (
             <button
               onClick={() => updateHuntStatus("live")}
@@ -295,14 +353,182 @@ export default function HuntControlPanel() {
         </div>
       </div>
 
+      {/* Settings Panel */}
+      {showSettings && (
+        <form
+          onSubmit={saveSettings}
+          className="glass-card rounded-xl border border-white/5 p-5 mb-6"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Settings size={16} className="text-gray-400" />
+            <h2 className="font-outfit font-semibold">Hunt Settings</h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            {/* Name */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+                Name
+              </label>
+              <input
+                type="text"
+                value={settingsTitle}
+                onChange={(e) => setSettingsTitle(e.target.value)}
+                placeholder="Hunt title"
+                className="form-input"
+                required
+              />
+              <p className="text-[10px] text-gray-600 mt-1">
+                Visible to viewers.
+              </p>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+                Description
+              </label>
+              <input
+                type="text"
+                value={settingsDesc}
+                onChange={(e) => setSettingsDesc(e.target.value)}
+                placeholder="Brief description"
+                className="form-input"
+              />
+              <p className="text-[10px] text-gray-600 mt-1">
+                Optional. Visible to viewers.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+            {/* Start Balance */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+                Start Balance
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={settingsBalance}
+                  onChange={(e) => setSettingsBalance(e.target.value)}
+                  placeholder="0"
+                  className="form-input pr-8"
+                  step="0.01"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                  {sym}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1">
+                Starting casino balance.
+              </p>
+            </div>
+
+            {/* Current Balance (computed, read-only) */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+                Current Balance
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={currentBalance != null ? currentBalance.toFixed(2) : "—"}
+                  className="form-input pr-8 text-gray-400 cursor-default"
+                  readOnly
+                  tabIndex={-1}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                  {sym}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1">
+                Auto-calculated.
+              </p>
+            </div>
+
+            {/* End Balance (computed, read-only) */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+                End Balance
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={
+                    hunt.status === "completed" && currentBalance != null
+                      ? currentBalance.toFixed(2)
+                      : "—"
+                  }
+                  className="form-input pr-8 text-gray-400 cursor-default"
+                  readOnly
+                  tabIndex={-1}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
+                  {sym}
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1">
+                Set when hunt ends.
+              </p>
+            </div>
+
+            {/* Currency */}
+            <div>
+              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
+                Currency
+              </label>
+              <div className="relative">
+                <select
+                  value={settingsCurrency}
+                  onChange={(e) => setSettingsCurrency(e.target.value)}
+                  className="form-input appearance-none pr-8 cursor-pointer"
+                >
+                  {SUPPORTED_CURRENCIES.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={14}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                />
+              </div>
+              <p className="text-[10px] text-gray-600 mt-1">
+                Currency for this hunt.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={savingSettings || !settingsTitle.trim()}
+            className="bg-gradient-to-r from-green-600 to-green-500 disabled:from-gray-700 disabled:to-gray-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all hover:scale-[1.02]"
+          >
+            {savingSettings ? "Saving..." : "Update Settings"}
+          </button>
+        </form>
+      )}
+
       {/* Running Totals */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className={`grid gap-3 mb-6 ${startBal != null ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4"}`}>
+        {startBal != null && (
+          <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
+              Balance
+            </p>
+            <p className={`font-outfit text-lg font-bold ${currentBalance != null && currentBalance >= startBal ? "text-green-400" : "text-red-400"}`}>
+              {formatCurrency(currentBalance ?? 0, cur)}
+            </p>
+          </div>
+        )}
         {[
-          { label: "Total Cost", value: formatCurrency(totalCost), color: "text-white" },
-          { label: "Total Won", value: formatCurrency(totalWon), color: "text-green-400" },
+          { label: "Total Cost", value: formatCurrency(totalCost, cur), color: "text-white" },
+          { label: "Total Won", value: formatCurrency(totalWon, cur), color: "text-green-400" },
           {
             label: "Profit",
-            value: `${profit >= 0 ? "+" : ""}${formatCurrency(profit)}`,
+            value: `${profit >= 0 ? "+" : ""}${formatCurrency(profit, cur)}`,
             color: profit >= 0 ? "text-green-400" : "text-red-400",
           },
           { label: "Avg Multi", value: formatMultiplier(avgMultiplier), color: "text-yellow-400" },
@@ -539,7 +765,7 @@ export default function HuntControlPanel() {
 
                     {/* Bet */}
                     <td className="px-4 py-3 text-right text-sm text-gray-400">
-                      {formatCurrency(entry.betSize)}
+                      {formatCurrency(entry.betSize, cur)}
                     </td>
 
                     {/* Won */}
@@ -578,7 +804,7 @@ export default function HuntControlPanel() {
                             setResultValue(entry.result || "");
                           }}
                         >
-                          {formatCurrency(result)}
+                          {formatCurrency(result, cur)}
                         </span>
                       ) : entry.status === "playing" ? (
                         <button

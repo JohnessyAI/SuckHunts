@@ -21,9 +21,12 @@ interface HuntEntry {
 interface Hunt {
   id: string;
   title: string;
+  description: string | null;
   status: string;
+  startBalance: string | null;
   totalCost: string;
   totalWon: string;
+  currency: string;
   entries: HuntEntry[];
   user: { name: string; image: string | null };
 }
@@ -64,6 +67,7 @@ export default function PublicViewerPage() {
     );
   }
 
+  const cur = hunt.currency || "USD";
   const totalCost = parseFloat(hunt.totalCost);
   const totalWon = parseFloat(hunt.totalWon);
   const profit = totalWon - totalCost;
@@ -110,7 +114,7 @@ export default function PublicViewerPage() {
                   }`}
                 >
                   {profit >= 0 ? "+" : ""}
-                  {formatCurrency(profit)}
+                  {formatCurrency(profit, cur)}
                 </p>
               </div>
             </div>
@@ -122,11 +126,11 @@ export default function PublicViewerPage() {
         {/* Stats Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
           {[
-            { label: "Cost", value: formatCurrency(totalCost), icon: DollarSign, color: "text-white" },
-            { label: "Won", value: formatCurrency(totalWon), icon: TrendingUp, color: "text-green-400" },
+            { label: "Cost", value: formatCurrency(totalCost, cur), icon: DollarSign, color: "text-white" },
+            { label: "Won", value: formatCurrency(totalWon, cur), icon: TrendingUp, color: "text-green-400" },
             {
               label: "Profit",
-              value: `${profit >= 0 ? "+" : ""}${formatCurrency(profit)}`,
+              value: `${profit >= 0 ? "+" : ""}${formatCurrency(profit, cur)}`,
               icon: DollarSign,
               color: profit >= 0 ? "text-green-400" : "text-red-400",
             },
@@ -215,10 +219,10 @@ export default function PublicViewerPage() {
 
                 <div className="flex items-center gap-6 flex-shrink-0 text-xs">
                   <span className="text-gray-500 w-14 text-right">
-                    ${parseFloat(entry.betSize).toFixed(2)}
+                    {formatCurrency(entry.betSize, cur)}
                   </span>
                   <span className="text-white w-16 text-right">
-                    {formatCurrency(entry.cost)}
+                    {formatCurrency(entry.cost, cur)}
                   </span>
                   <span
                     className={`w-20 text-right font-medium ${
@@ -229,7 +233,7 @@ export default function PublicViewerPage() {
                         : "text-gray-600"
                     }`}
                   >
-                    {entry.result ? formatCurrency(entry.result) : "—"}
+                    {entry.result ? formatCurrency(entry.result, cur) : "—"}
                   </span>
                   <span
                     className={`w-14 text-right ${

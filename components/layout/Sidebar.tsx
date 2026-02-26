@@ -10,6 +10,7 @@ import {
   CreditCard,
   Settings,
   Shield,
+  Lightbulb,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,15 @@ export default function Sidebar() {
             </Link>
           </>
         )}
+
+        <div className="section-divider my-3" />
+        <a
+          href="#"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 hover:text-yellow-400 hover:bg-yellow-500/5 transition-all"
+        >
+          <Lightbulb size={18} />
+          Request a Feature
+        </a>
       </nav>
     </aside>
   );
