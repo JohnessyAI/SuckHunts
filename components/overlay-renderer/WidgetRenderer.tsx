@@ -64,6 +64,11 @@ interface WidgetRendererProps {
   isEditor?: boolean;
 }
 
+// Shorthand: the smaller dimension drives proportional scaling
+function minDim(w: number, h: number) {
+  return Math.min(w, h);
+}
+
 // Inner dimensions after style wrapper (padding + border eat into available space)
 function getInnerDimensions(config: Record<string, unknown>, width: number, height: number) {
   const padding = (c(config, "padding", 0) as number) ?? 0;
@@ -151,7 +156,7 @@ function HuntTableWidget({
   height: number;
   isEditor?: boolean;
 }) {
-  // Scale font to widget — constrained by both width and height
+  // Scale font proportionally — constrained by both width and height
   const fontSize = Math.max(10, Math.min(width * 0.035, height * 0.04, 20));
   const autoScroll = c(config, "autoScroll", true) as boolean;
   const scrollSpeed = c(config, "scrollSpeed", 30) as number ?? 30;
@@ -159,7 +164,7 @@ function HuntTableWidget({
   const singleSetRef = useRef<HTMLDivElement>(null);
   const [singleSetHeight, setSingleSetHeight] = useState(0);
   const [containerH, setContainerH] = useState(0);
-  const ROW_GAP = 2; // px between rows
+  const ROW_GAP = 2;
 
   // Responsive: progressively hide columns as width shrinks
   const showCost = width >= 350 && c(config, "showCost");
@@ -185,7 +190,7 @@ function HuntTableWidget({
     return (
       <div
         key={`${keyPrefix}${e.id}`}
-        className={`flex items-center justify-between px-2 py-1 rounded ${
+        className={`flex items-center justify-between px-2 py-1 rounded overflow-hidden ${
           e.status === "playing"
             ? "bg-red-500/20"
             : e.status === "completed"
@@ -194,7 +199,7 @@ function HuntTableWidget({
         }`}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-white/30 w-5 text-right">{i + 1}</span>
+          <span className="text-white/30 flex-shrink-0" style={{ width: fontSize * 1.5, textAlign: "right" }}>{i + 1}</span>
           <span className="truncate text-white">{e.gameName}</span>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -218,7 +223,7 @@ function HuntTableWidget({
 
   if (!autoScroll) {
     return (
-      <div className="h-full overflow-hidden" style={{ fontSize }}>
+      <div className="h-full w-full overflow-hidden" style={{ fontSize }}>
         <div style={{ display: "flex", flexDirection: "column", gap: ROW_GAP }}>
           {entries.map((e, i) => renderRow(e, i))}
         </div>
@@ -226,17 +231,15 @@ function HuntTableWidget({
     );
   }
 
-  // Render enough copies so content always fills viewport + one extra set for seamless loop
   const copies = singleSetHeight > 0
     ? Math.max(2, Math.ceil(containerH / singleSetHeight) + 1)
     : 2;
 
-  // Scroll exactly one set's height + the gap between sets
   const scrollDistance = singleSetHeight + ROW_GAP;
   const duration = scrollDistance > 0 ? scrollDistance / scrollSpeed : 20;
 
   return (
-    <div ref={containerRef} className="h-full overflow-hidden" style={{ fontSize }}>
+    <div ref={containerRef} className="h-full w-full overflow-hidden" style={{ fontSize }}>
       <div
         className="hunt-table-scroll-seamless"
         style={{
@@ -286,13 +289,9 @@ function CurrentGameWidget({
   height: number;
   isEditor?: boolean;
 }) {
-  const fontSize = c(config, "fontSize", 14) as number ?? 20;
-  const showInfo = c(config, "showInfo", true) as boolean;
-  const showRecord = c(config, "showRecord", true) as boolean;
-
   if (!playing) {
     return (
-      <div className="flex items-center justify-center h-full text-white/30 text-sm italic">
+      <div className="flex items-center justify-center h-full w-full text-white/30 text-sm italic">
         Currently Playing{isEditor ? " (connect a hunt)" : ""}
       </div>
     );
@@ -305,32 +304,29 @@ function CurrentGameWidget({
   const betSize = currentGameData?.betSize ?? playing.betSize;
   const atBet = record?.atCurrentBet ?? null;
 
-  // ─── Responsive breakpoints ───
-  // Width tiers determine which sections are visible
-  const canShowImage = width >= 200 && c(config, "showImage", true);
-  const canShowInfo = width >= 400 && showInfo && info;
-  const canShowRecord = width >= 500 && showRecord && record;
-  const canShowProvider = width >= 300 && c(config, "showProvider");
-  const canShowBet = width >= 250 && c(config, "showBet") && !canShowRecord;
+  // ─── Proportional scaling ───
+  const md = minDim(width, height);
+  const isPortrait = height > width * 0.8;
+  const isLandscape = width > height * 1.2;
 
-  // Height tiers determine density
-  const isCompactH = height < 100;
-  const isTallH = height >= 200;
+  // All font sizes scale proportionally with the widget
+  const titleSize = Math.max(11, Math.min(md * 0.14, width * 0.08, 36));
+  const labelSize = Math.max(7, titleSize * 0.45);
+  const detailSize = Math.max(8, titleSize * 0.55);
 
-  // Scale font with height when very compact or tall
-  const adaptedFontSize = isCompactH
-    ? Math.min(fontSize, Math.max(12, height * 0.25))
-    : isTallH
-    ? Math.min(fontSize * 1.3, 48)
-    : fontSize;
+  // Responsive visibility — based on available space
+  const canShowImage = md >= 80 && c(config, "showImage", true);
+  const canShowProvider = md >= 120 && c(config, "showProvider");
+  const canShowInfo = md >= 140 && c(config, "showInfo", true) && info;
+  const canShowRecord = md >= 180 && c(config, "showRecord", true) && record;
+  const canShowBet = md >= 100 && c(config, "showBet") && !canShowRecord;
 
-  // Tall layout: stack vertically
-  if (isTallH && height > width * 0.8) {
+  // ─── Portrait layout (tall widget) ───
+  if (isPortrait) {
     return (
-      <div className="flex flex-col h-full">
-        {/* Image on top */}
+      <div className="flex flex-col h-full w-full overflow-hidden">
         {canShowImage && gameImage && (
-          <div className="flex-shrink-0 flex justify-center p-2" style={{ maxHeight: "50%" }}>
+          <div className="flex-shrink-0 flex justify-center p-1" style={{ maxHeight: "45%" }}>
             <img
               src={gameImage}
               alt={playing.gameName}
@@ -339,52 +335,49 @@ function CurrentGameWidget({
             />
           </div>
         )}
-        {/* Name + details below */}
-        <div className="flex-1 flex flex-col justify-center items-center min-h-0 px-3 py-1 text-center">
-          <p className="text-white/40 text-[9px] uppercase tracking-wider font-medium">Current Game</p>
-          <p className="text-white font-bold truncate w-full leading-tight" style={{ fontSize: adaptedFontSize }}>
+        <div className="flex-1 flex flex-col justify-center items-center min-h-0 px-2 py-1 text-center overflow-hidden">
+          <p className="text-white/40 uppercase tracking-wider font-medium" style={{ fontSize: labelSize }}>Current Game</p>
+          <p className="text-white font-bold truncate w-full leading-tight" style={{ fontSize: titleSize }}>
             {playing.gameName}
           </p>
           {canShowProvider && gameProvider && (
-            <p className="text-white/40 text-xs">{gameProvider}</p>
+            <p className="text-white/40 truncate w-full" style={{ fontSize: detailSize }}>{gameProvider}</p>
           )}
           {canShowInfo && (
-            <div className="flex gap-3 mt-1 justify-center">
+            <div className="flex gap-2 mt-1 justify-center flex-wrap">
               {info!.maxWin && (
                 <div>
-                  <p className="text-white/30 text-[8px] uppercase">Potential</p>
-                  <p className="text-white text-xs font-semibold">{info!.maxWin}</p>
+                  <p className="text-white/30 uppercase" style={{ fontSize: labelSize }}>Potential</p>
+                  <p className="text-white font-semibold" style={{ fontSize: detailSize }}>{info!.maxWin}</p>
                 </div>
               )}
               {info!.rtp && (
                 <div>
-                  <p className="text-white/30 text-[8px] uppercase">RTP</p>
-                  <p className="text-white text-xs font-semibold">{info!.rtp}%</p>
+                  <p className="text-white/30 uppercase" style={{ fontSize: labelSize }}>RTP</p>
+                  <p className="text-white font-semibold" style={{ fontSize: detailSize }}>{info!.rtp}%</p>
                 </div>
               )}
               {info!.volatility && (
                 <div>
-                  <p className="text-white/30 text-[8px] uppercase">Volatility</p>
-                  <p className="text-white text-xs font-semibold">{info!.volatility}</p>
+                  <p className="text-white/30 uppercase" style={{ fontSize: labelSize }}>Volatility</p>
+                  <p className="text-white font-semibold" style={{ fontSize: detailSize }}>{info!.volatility}</p>
                 </div>
               )}
             </div>
           )}
         </div>
-        {/* Record at bottom */}
         {canShowRecord && (
-          <RecordSection atBet={atBet} record={record!} betSize={betSize} horizontal />
+          <RecordSection atBet={atBet} record={record!} betSize={betSize} fontSize={detailSize} labelFontSize={labelSize} horizontal />
         )}
       </div>
     );
   }
 
-  // ─── Default horizontal layout ───
+  // ─── Landscape / default horizontal layout ───
   return (
-    <div className="flex h-full gap-0">
-      {/* Left: Game Image */}
+    <div className="flex h-full w-full overflow-hidden">
       {canShowImage && gameImage && (
-        <div className="h-full flex-shrink-0 flex items-center p-2" style={{ maxWidth: "40%" }}>
+        <div className="h-full flex-shrink-0 flex items-center p-1" style={{ maxWidth: "35%" }}>
           <img
             src={gameImage}
             alt={playing.gameName}
@@ -393,53 +386,46 @@ function CurrentGameWidget({
           />
         </div>
       )}
-
-      {/* Center: Game Name + Info */}
-      <div className="flex-1 flex flex-col justify-center min-w-0 px-3 py-1">
-        {!isCompactH && (
-          <p className="text-white/40 text-[9px] uppercase tracking-wider font-medium">Current Game</p>
-        )}
-        <p className="text-white font-bold truncate leading-tight" style={{ fontSize: adaptedFontSize }}>
+      <div className="flex-1 flex flex-col justify-center min-w-0 px-2 py-1 overflow-hidden">
+        {!isLandscape || height >= 60 ? (
+          <p className="text-white/40 uppercase tracking-wider font-medium" style={{ fontSize: labelSize }}>Current Game</p>
+        ) : null}
+        <p className="text-white font-bold truncate leading-tight" style={{ fontSize: titleSize }}>
           {playing.gameName}
         </p>
-        {canShowProvider && gameProvider && !isCompactH && (
-          <p className="text-white/40 text-xs">{gameProvider}</p>
+        {canShowProvider && gameProvider && height >= 50 && (
+          <p className="text-white/40 truncate" style={{ fontSize: detailSize }}>{gameProvider}</p>
         )}
-
-        {canShowInfo && !isCompactH && (
-          <div className="flex gap-3 mt-1">
+        {canShowInfo && height >= 70 && (
+          <div className="flex gap-2 mt-1">
             {info!.maxWin && (
-              <div>
-                <p className="text-white/30 text-[8px] uppercase">Potential</p>
-                <p className="text-white text-xs font-semibold">{info!.maxWin}</p>
+              <div className="min-w-0">
+                <p className="text-white/30 uppercase" style={{ fontSize: labelSize }}>Potential</p>
+                <p className="text-white font-semibold" style={{ fontSize: detailSize }}>{info!.maxWin}</p>
               </div>
             )}
             {info!.rtp && (
-              <div>
-                <p className="text-white/30 text-[8px] uppercase">RTP</p>
-                <p className="text-white text-xs font-semibold">{info!.rtp}%</p>
+              <div className="min-w-0">
+                <p className="text-white/30 uppercase" style={{ fontSize: labelSize }}>RTP</p>
+                <p className="text-white font-semibold" style={{ fontSize: detailSize }}>{info!.rtp}%</p>
               </div>
             )}
             {info!.volatility && (
-              <div>
-                <p className="text-white/30 text-[8px] uppercase">Volatility</p>
-                <p className="text-white text-xs font-semibold">{info!.volatility}</p>
+              <div className="min-w-0">
+                <p className="text-white/30 uppercase" style={{ fontSize: labelSize }}>Volatility</p>
+                <p className="text-white font-semibold" style={{ fontSize: detailSize }}>{info!.volatility}</p>
               </div>
             )}
           </div>
         )}
       </div>
-
-      {/* Right: Personal Record */}
-      {canShowRecord && (
-        <RecordSection atBet={atBet} record={record!} betSize={betSize} />
+      {canShowRecord && width >= 350 && (
+        <RecordSection atBet={atBet} record={record!} betSize={betSize} fontSize={detailSize} labelFontSize={labelSize} />
       )}
-
-      {/* Bet badge (only if no record shown) */}
       {canShowBet && (
-        <div className="flex-shrink-0 flex flex-col justify-center px-3">
-          <p className="text-white/40 text-xs">BET</p>
-          <p className="text-white font-bold">${parseFloat(playing.betSize).toFixed(2)}</p>
+        <div className="flex-shrink-0 flex flex-col justify-center px-2">
+          <p className="text-white/40" style={{ fontSize: labelSize }}>BET</p>
+          <p className="text-white font-bold" style={{ fontSize: detailSize }}>${parseFloat(playing.betSize).toFixed(2)}</p>
         </div>
       )}
     </div>
@@ -450,31 +436,35 @@ function RecordSection({
   atBet,
   record,
   betSize,
+  fontSize,
+  labelFontSize,
   horizontal,
 }: {
   atBet: CurrentGameData["personalRecord"] extends null ? never : NonNullable<CurrentGameData["personalRecord"]>["atCurrentBet"];
   record: NonNullable<CurrentGameData["personalRecord"]>;
   betSize: string;
+  fontSize: number;
+  labelFontSize: number;
   horizontal?: boolean;
 }) {
   if (horizontal) {
     return (
-      <div className="flex-shrink-0 flex items-center justify-around px-3 py-2 border-t border-white/10">
+      <div className="flex-shrink-0 flex items-center justify-around px-2 py-1 border-t border-white/10">
         <div className="text-center">
-          <p className="text-white/30 text-[8px] uppercase">Win</p>
-          <p className="text-white text-xs font-bold">
+          <p className="text-white/30 uppercase" style={{ fontSize: labelFontSize }}>Win</p>
+          <p className="text-white font-bold" style={{ fontSize }}>
             {atBet ? formatCurrency(atBet.bestWin) : formatCurrency(record.biggestWin)}
           </p>
         </div>
         <div className="text-center">
-          <p className="text-white/30 text-[8px] uppercase">X</p>
-          <p className="text-yellow-400 text-xs font-bold">
+          <p className="text-white/30 uppercase" style={{ fontSize: labelFontSize }}>X</p>
+          <p className="text-yellow-400 font-bold" style={{ fontSize }}>
             {atBet ? formatMultiplier(atBet.bestMulti) : formatMultiplier(record.biggestMultiplier)}
           </p>
         </div>
         <div className="text-center">
-          <p className="text-white/30 text-[8px] uppercase">Avg</p>
-          <p className="text-white/70 text-xs font-bold">
+          <p className="text-white/30 uppercase" style={{ fontSize: labelFontSize }}>Avg</p>
+          <p className="text-white/70 font-bold" style={{ fontSize }}>
             {atBet ? formatCurrency(atBet.avgWin) : formatMultiplier(record.avgMultiplier)}
           </p>
         </div>
@@ -483,26 +473,26 @@ function RecordSection({
   }
 
   return (
-    <div className="flex-shrink-0 flex flex-col justify-center px-3 py-2 border-l border-white/10 min-w-[130px]">
-      <p className="text-yellow-400 text-[9px] uppercase tracking-wider font-medium mb-1">Personal Record</p>
+    <div className="flex-shrink-0 flex flex-col justify-center px-2 py-1 border-l border-white/10 overflow-hidden">
+      <p className="text-yellow-400 uppercase tracking-wider font-medium mb-0.5" style={{ fontSize: labelFontSize }}>Personal Record</p>
       <div className="space-y-0.5">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-white/40 text-[10px]">WIN</span>
-          <span className="text-white text-xs font-bold">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-white/40" style={{ fontSize: labelFontSize }}>WIN</span>
+          <span className="text-white font-bold truncate" style={{ fontSize }}>
             {atBet ? formatCurrency(atBet.bestWin) : formatCurrency(record.biggestWin)}
-            {atBet && <span className="text-white/30 text-[8px] ml-1">(${parseFloat(betSize).toFixed(0)})</span>}
+            {atBet && <span className="text-white/30 ml-0.5" style={{ fontSize: labelFontSize }}>(${parseFloat(betSize).toFixed(0)})</span>}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-white/40 text-[10px]">X</span>
-          <span className="text-yellow-400 text-xs font-bold">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-white/40" style={{ fontSize: labelFontSize }}>X</span>
+          <span className="text-yellow-400 font-bold truncate" style={{ fontSize }}>
             {atBet ? formatMultiplier(atBet.bestMulti) : formatMultiplier(record.biggestMultiplier)}
-            {atBet && <span className="text-white/30 text-[8px] ml-1">(${parseFloat(betSize).toFixed(0)})</span>}
+            {atBet && <span className="text-white/30 ml-0.5" style={{ fontSize: labelFontSize }}>(${parseFloat(betSize).toFixed(0)})</span>}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-white/40 text-[10px]">AVG</span>
-          <span className="text-white/70 text-xs font-bold">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-white/40" style={{ fontSize: labelFontSize }}>AVG</span>
+          <span className="text-white/70 font-bold truncate" style={{ fontSize }}>
             {atBet ? formatCurrency(atBet.avgWin) : formatMultiplier(record.avgMultiplier)}
           </span>
         </div>
@@ -548,7 +538,7 @@ function WidgetContent({
     .sort((a, b) => parseFloat(b.multiplier!) - parseFloat(a.multiplier!))[0];
 
   const placeholder = (label: string) => (
-    <div className="flex items-center justify-center h-full text-white/30 text-sm italic">
+    <div className="flex items-center justify-center h-full w-full text-white/30 text-sm italic overflow-hidden">
       {label}
       {isEditor ? " (connect a hunt)" : ""}
     </div>
@@ -574,17 +564,16 @@ function WidgetContent({
 
     case "biggest-win": {
       if (!bestEntry) return placeholder("Biggest Win");
-      // Scale font to fill — constrained by both width and height
       const showGame = c(config, "showGame") as boolean;
       const mainSize = Math.max(14, Math.min(width * 0.14, height * (showGame ? 0.3 : 0.45)));
       const subSize = Math.max(10, mainSize * 0.45);
       return (
-        <div className="flex items-center justify-center h-full w-full px-4">
-          <div className="text-center w-full">
-            <p className="text-yellow-400 font-bold leading-tight" style={{ fontSize: mainSize }}>
+        <div className="flex items-center justify-center h-full w-full px-3 overflow-hidden">
+          <div className="text-center w-full min-w-0">
+            <p className="text-yellow-400 font-bold leading-tight truncate" style={{ fontSize: mainSize }}>
               {formatMultiplier(bestEntry.multiplier!)}
             </p>
-            {c(config, "showGame") && (
+            {showGame && (
               <p className="text-white/60 truncate mt-1" style={{ fontSize: subSize }}>
                 {bestEntry.gameName}
               </p>
@@ -595,20 +584,17 @@ function WidgetContent({
     }
 
     case "running-totals": {
-      // Auto-switch layout based on aspect ratio (default: auto)
       const configLayout = c(config, "layout", "auto");
       const isHorizontal = configLayout === "horizontal"
         ? true
         : configLayout === "vertical"
         ? false
-        : width > height * 1.2; // auto: landscape → horizontal, portrait → vertical
+        : width > height * 1.2;
 
-      // Count visible stats to compute per-item space
       const showProfit = c(config, "showProfit") as boolean;
       const showAvg = c(config, "showAvg") as boolean;
       const statCount = 2 + (showProfit ? 1 : 0) + (showAvg ? 1 : 0);
 
-      // Scale font to fill: divide by stat count, constrained by BOTH axes
       const perItemW = isHorizontal ? width / statCount : width;
       const perItemH = isHorizontal ? height : height / statCount;
       const valSize = Math.max(12, Math.min(perItemW * 0.18, perItemH * 0.35));
@@ -616,28 +602,28 @@ function WidgetContent({
 
       return (
         <div
-          className={`flex ${isHorizontal ? "flex-row" : "flex-col"} items-center justify-around h-full w-full px-4`}
+          className={`flex ${isHorizontal ? "flex-row" : "flex-col"} items-center justify-around h-full w-full px-3 overflow-hidden`}
         >
-          <div className="text-center">
-            <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Cost</p>
-            <p className="text-white font-bold" style={{ fontSize: valSize }}>{formatCurrency(totalCost)}</p>
+          <div className="text-center min-w-0">
+            <p className="text-white/40 uppercase font-medium truncate" style={{ fontSize: labelSize }}>Cost</p>
+            <p className="text-white font-bold truncate" style={{ fontSize: valSize }}>{formatCurrency(totalCost)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Won</p>
-            <p className="text-green-400 font-bold" style={{ fontSize: valSize }}>{formatCurrency(totalWon)}</p>
+          <div className="text-center min-w-0">
+            <p className="text-white/40 uppercase font-medium truncate" style={{ fontSize: labelSize }}>Won</p>
+            <p className="text-green-400 font-bold truncate" style={{ fontSize: valSize }}>{formatCurrency(totalWon)}</p>
           </div>
           {showProfit && (
-            <div className="text-center">
-              <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Profit</p>
-              <p className={`font-bold ${profit >= 0 ? "text-green-400" : "text-red-400"}`} style={{ fontSize: valSize }}>
+            <div className="text-center min-w-0">
+              <p className="text-white/40 uppercase font-medium truncate" style={{ fontSize: labelSize }}>Profit</p>
+              <p className={`font-bold truncate ${profit >= 0 ? "text-green-400" : "text-red-400"}`} style={{ fontSize: valSize }}>
                 {profit >= 0 ? "+" : ""}{formatCurrency(profit)}
               </p>
             </div>
           )}
           {showAvg && (
-            <div className="text-center">
-              <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Avg</p>
-              <p className="text-yellow-400 font-bold" style={{ fontSize: valSize }}>{formatMultiplier(avgMultiplier)}</p>
+            <div className="text-center min-w-0">
+              <p className="text-white/40 uppercase font-medium truncate" style={{ fontSize: labelSize }}>Avg</p>
+              <p className="text-yellow-400 font-bold truncate" style={{ fontSize: valSize }}>{formatMultiplier(avgMultiplier)}</p>
             </div>
           )}
         </div>
@@ -650,12 +636,12 @@ function WidgetContent({
       const pct = total > 0 ? (done / total) * 100 : 0;
       const barColor = c(config, "barColor", "#ef4444") as string ?? "#ef4444";
       const isVerticalBar = height > width * 2;
-      const barThickness = Math.max(4, Math.min(Math.min(width, height) * 0.3, 24));
+      const barThickness = Math.max(4, Math.min(minDim(width, height) * 0.3, 24));
       const labelSize = Math.max(9, Math.min(width * 0.04, height * 0.06, 16));
 
       if (isVerticalBar) {
         return (
-          <div className="flex flex-row items-center justify-center w-full h-full py-4 gap-2">
+          <div className="flex flex-row items-center justify-center w-full h-full py-3 gap-2 overflow-hidden">
             {c(config, "showLabel") && width >= 60 && (
               <div className="flex flex-col items-center text-white/50" style={{ fontSize: labelSize }}>
                 <span style={{ writingMode: "vertical-lr", transform: "rotate(180deg)" }}>Progress</span>
@@ -664,7 +650,7 @@ function WidgetContent({
             )}
             <div className="bg-white/10 rounded-full overflow-hidden relative" style={{ width: barThickness, height: "100%" }}>
               <div
-                className="absolute bottom-0 w-full rounded-full transition-all duration-500"
+                className="absolute bottom-0 w-full rounded-full"
                 style={{ height: `${pct}%`, backgroundColor: barColor }}
               />
             </div>
@@ -673,7 +659,7 @@ function WidgetContent({
       }
 
       return (
-        <div className="flex flex-col justify-center h-full px-4">
+        <div className="flex flex-col justify-center h-full w-full px-3 overflow-hidden">
           {c(config, "showLabel") && height >= 40 && (
             <div className="flex justify-between text-white/50 mb-1" style={{ fontSize: labelSize }}>
               <span>Progress</span>
@@ -682,7 +668,7 @@ function WidgetContent({
           )}
           <div className="bg-white/10 rounded-full overflow-hidden" style={{ height: barThickness }}>
             <div
-              className="h-full rounded-full transition-all duration-500"
+              className="h-full rounded-full"
               style={{ width: `${pct}%`, backgroundColor: barColor }}
             />
           </div>
@@ -694,15 +680,14 @@ function WidgetContent({
       const count = c(config, "count", 5) as number ?? 3;
       const pending = entries.filter((e) => e.status === "pending");
       if (!pending.length) return placeholder("Next Up");
-      // Scale font to fit height — each row needs ~2.2x fontSize of space
-      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, pending.length) / 2.2));
+      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, pending.length) / 2.2, 24));
       const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = pending.slice(0, Math.min(count, maxVisible));
       return (
-        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: rowFontSize }}>
+        <div className="h-full w-full px-2 py-1 space-y-0.5 overflow-hidden" style={{ fontSize: rowFontSize }}>
           {visible.map((e, i) => (
-            <div key={e.id} className="flex items-center gap-2 text-white/70">
-              <span className="text-white/30 text-right" style={{ width: rowFontSize * 1.2, fontSize: rowFontSize * 0.8 }}>{i + 1}</span>
+            <div key={e.id} className="flex items-center gap-2 text-white/70 overflow-hidden">
+              <span className="text-white/30 flex-shrink-0 text-right" style={{ width: rowFontSize * 1.2, fontSize: rowFontSize * 0.8 }}>{i + 1}</span>
               <span className="truncate">{e.gameName}</span>
               {c(config, "showBet") && width >= 200 && (
                 <span className="ml-auto text-white/40 flex-shrink-0">
@@ -719,16 +704,16 @@ function WidgetContent({
       const count = c(config, "count", 5) as number ?? 5;
       const recent = [...completed].reverse().slice(0, count);
       if (!recent.length) return placeholder("Recent Results");
-      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, recent.length) / 2.2));
+      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, recent.length) / 2.2, 24));
       const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = recent.slice(0, maxVisible);
       return (
-        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: rowFontSize }}>
+        <div className="h-full w-full px-2 py-1 space-y-0.5 overflow-hidden" style={{ fontSize: rowFontSize }}>
           {visible.map((e) => {
             const isWin = parseFloat(e.result!) > parseFloat(e.cost);
             return (
-              <div key={e.id} className="flex items-center justify-between">
-                <span className="truncate text-white">{e.gameName}</span>
+              <div key={e.id} className="flex items-center justify-between overflow-hidden">
+                <span className="truncate text-white min-w-0">{e.gameName}</span>
                 <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                   <span className={isWin ? "text-green-400" : "text-red-400"}>
                     {formatCurrency(e.result!)}
@@ -751,17 +736,17 @@ function WidgetContent({
         .sort((a, b) => parseFloat(b.multiplier!) - parseFloat(a.multiplier!))
         .slice(0, count);
       if (!ranked.length) return placeholder("Top Wins");
-      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, ranked.length) / 2.2));
+      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, ranked.length) / 2.2, 24));
       const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = ranked.slice(0, maxVisible);
       return (
-        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: rowFontSize }}>
+        <div className="h-full w-full px-2 py-1 space-y-0.5 overflow-hidden" style={{ fontSize: rowFontSize }}>
           {visible.map((e, i) => (
-            <div key={e.id} className="flex items-center gap-2">
-              <span className={`font-bold text-right ${i === 0 ? "text-yellow-400" : "text-white/40"}`} style={{ width: rowFontSize * 1.5 }}>
+            <div key={e.id} className="flex items-center gap-2 overflow-hidden">
+              <span className={`font-bold flex-shrink-0 text-right ${i === 0 ? "text-yellow-400" : "text-white/40"}`} style={{ width: rowFontSize * 1.5 }}>
                 #{i + 1}
               </span>
-              <span className="truncate text-white">{e.gameName}</span>
+              <span className="truncate text-white min-w-0">{e.gameName}</span>
               <span className="ml-auto text-yellow-400 font-bold flex-shrink-0">
                 {formatMultiplier(e.multiplier!)}
               </span>
@@ -776,11 +761,10 @@ function WidgetContent({
       const color = c(config, "color", "#ffffff") as string ?? "#ffffff";
       const fontWeight = c(config, "fontWeight", "bold") as string ?? "bold";
       const align = c(config, "align", "center") as string ?? "center";
-      // Scale text to fill: constrained by width (chars) and height
       const adaptedFontSize = Math.max(10, Math.min(width * 0.08, height * 0.4));
       return (
-        <div className="flex items-center justify-center h-full px-4" style={{ textAlign: align as React.CSSProperties["textAlign"] }}>
-          <p style={{ fontSize: adaptedFontSize, color, fontWeight: fontWeight as React.CSSProperties["fontWeight"] }} className="w-full leading-tight">
+        <div className="flex items-center justify-center h-full w-full px-3 overflow-hidden" style={{ textAlign: align as React.CSSProperties["textAlign"] }}>
+          <p style={{ fontSize: adaptedFontSize, color, fontWeight: fontWeight as React.CSSProperties["fontWeight"] }} className="w-full leading-tight truncate">
             {text}
           </p>
         </div>
@@ -792,21 +776,22 @@ function WidgetContent({
       const fit = c(config, "fit", "contain") as string ?? "contain";
       if (!url) return placeholder("Image (set URL)");
       return (
-        <img
-          src={url}
-          alt=""
-          className="w-full h-full"
-          style={{ objectFit: fit as React.CSSProperties["objectFit"] }}
-        />
+        <div className="w-full h-full overflow-hidden">
+          <img
+            src={url}
+            alt=""
+            className="w-full h-full"
+            style={{ objectFit: fit as React.CSSProperties["objectFit"] }}
+          />
+        </div>
       );
     }
 
     case "timer": {
       const color = c(config, "color", "#ffffff") as string ?? "#ffffff";
-      // "00:00:00" is ~8 chars wide — scale to fill
       const adaptedSize = Math.max(12, Math.min(width * 0.12, height * 0.45));
       return (
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center h-full w-full overflow-hidden">
           <p style={{ fontSize: adaptedSize, color }} className="font-mono font-bold">
             00:00:00
           </p>
@@ -816,16 +801,17 @@ function WidgetContent({
 
     case "game-image": {
       if (!playing?.gameImage) return placeholder("Game Image");
+      const nameSize = Math.max(10, Math.min(width * 0.05, 16));
       return (
-        <div className="h-full flex flex-col items-center justify-center">
+        <div className="w-full h-full flex flex-col items-center justify-center overflow-hidden">
           <img
             src={playing.gameImage}
             alt={playing.gameName}
-            className="max-w-full max-h-full"
+            className="max-w-full max-h-full flex-shrink-0"
             style={{ objectFit: (c(config, "fit", "contain") as string) as React.CSSProperties["objectFit"] }}
           />
           {c(config, "showName") && height >= 80 && (
-            <p className="text-white text-sm mt-1">{playing.gameName}</p>
+            <p className="text-white mt-1 truncate w-full text-center flex-shrink-0" style={{ fontSize: nameSize }}>{playing.gameName}</p>
           )}
         </div>
       );
