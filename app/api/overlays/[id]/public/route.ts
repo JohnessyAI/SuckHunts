@@ -22,5 +22,15 @@ export async function GET(
 
   if (!project) return notFound("Overlay not found");
 
-  return NextResponse.json(project);
+  // Auto-resolve active hunt: use activeHuntId if set, otherwise find the user's live hunt
+  let activeHuntId = project.activeHuntId;
+  if (!activeHuntId) {
+    const liveHunt = await prisma.hunt.findFirst({
+      where: { userId: project.userId, status: "live" },
+      select: { id: true },
+    });
+    if (liveHunt) activeHuntId = liveHunt.id;
+  }
+
+  return NextResponse.json({ ...project, activeHuntId });
 }

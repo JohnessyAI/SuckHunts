@@ -57,8 +57,15 @@ export async function PATCH(
       return badRequest("Invalid status");
     }
     data.status = body.status;
-    if (body.status === "live" && !hunt.startedAt) {
-      data.startedAt = new Date();
+    if (body.status === "live") {
+      // Deactivate all other live hunts for this user
+      await prisma.hunt.updateMany({
+        where: { userId: session.user.id, status: "live", id: { not: id } },
+        data: { status: "completed", completedAt: new Date() },
+      });
+      if (!hunt.startedAt) {
+        data.startedAt = new Date();
+      }
     }
     if (body.status === "completed") {
       data.completedAt = new Date();
