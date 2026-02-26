@@ -339,6 +339,7 @@ export default function WidgetConfigPanel({
               </div>
             </div>
           )}
+          <ToggleOption label="Show Image" configKey="showImage" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Cost" configKey="showCost" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Result" configKey="showResult" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Multiplier" configKey="showMultiplier" config={config} onChange={onConfigChange} />

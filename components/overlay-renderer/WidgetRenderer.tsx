@@ -187,35 +187,132 @@ function HuntTableWidget({
     );
   }
 
+  const showImage = width >= 250 && c(config, "showImage", true);
+  const showBet = width >= 200 && c(config, "showBet");
+  const rowPad = Math.max(2, Math.min(fontSize * 0.3, 8));
+  const imgSize = Math.max(16, Math.min(fontSize * 2.2, 40));
+  const numWidth = Math.max(16, fontSize * 1.6);
+
   const renderRow = (e: HuntEntry, i: number, keyPrefix = "") => {
     const isWin = e.result && parseFloat(e.result) > parseFloat(e.cost);
+    const isPlaying = e.status === "playing";
+    const isDone = e.status === "completed";
+
     return (
       <div
         key={`${keyPrefix}${e.id}`}
-        className={`flex items-center justify-between px-2 py-1 rounded overflow-hidden ${
-          e.status === "playing"
-            ? "bg-red-500/20"
-            : e.status === "completed"
-            ? "bg-white/5"
-            : "bg-white/[0.02] opacity-50"
-        }`}
+        className="flex items-center overflow-hidden"
+        style={{
+          padding: `${rowPad}px ${rowPad * 1.5}px`,
+          borderRadius: fontSize * 0.3,
+          background: isPlaying
+            ? "rgba(239,68,68,0.15)"
+            : isDone
+            ? "rgba(255,255,255,0.03)"
+            : "transparent",
+          borderLeft: isPlaying
+            ? "2px solid rgba(239,68,68,0.8)"
+            : isWin
+            ? "2px solid rgba(74,222,128,0.4)"
+            : isDone
+            ? "2px solid rgba(248,113,113,0.3)"
+            : "2px solid transparent",
+          opacity: isDone ? 1 : 0.5,
+        }}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-white/30 flex-shrink-0" style={{ width: fontSize * 1.5, textAlign: "right" }}>{i + 1}</span>
-          <span className="truncate text-white">{e.gameName}</span>
+        {/* Number */}
+        <span
+          className="flex-shrink-0 text-right font-mono"
+          style={{
+            width: numWidth,
+            fontSize: fontSize * 0.75,
+            color: isPlaying ? "rgba(239,68,68,0.8)" : "rgba(255,255,255,0.25)",
+          }}
+        >
+          {i + 1}
+        </span>
+
+        {/* Game Image */}
+        {showImage && (
+          <div className="flex-shrink-0" style={{ marginLeft: rowPad, width: imgSize, height: imgSize }}>
+            {e.gameImage ? (
+              <img
+                src={e.gameImage}
+                alt=""
+                style={{ width: imgSize, height: imgSize, borderRadius: imgSize * 0.2, objectFit: "cover" }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: imgSize,
+                  height: imgSize,
+                  borderRadius: imgSize * 0.2,
+                  background: "rgba(255,255,255,0.05)",
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Game Name + Provider */}
+        <div className="min-w-0 flex-1" style={{ marginLeft: rowPad * 1.5 }}>
+          <span
+            className="block truncate font-medium"
+            style={{
+              color: isPlaying ? "#fff" : isDone ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.5)",
+              fontSize,
+              lineHeight: 1.2,
+            }}
+          >
+            {e.gameName}
+          </span>
+          {width >= 350 && e.gameProvider && (
+            <span
+              className="block truncate"
+              style={{ color: "rgba(255,255,255,0.3)", fontSize: fontSize * 0.7, lineHeight: 1.2 }}
+            >
+              {e.gameProvider}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
+
+        {/* Stats */}
+        <div className="flex items-center flex-shrink-0" style={{ gap: fontSize * 0.8, marginLeft: rowPad }}>
+          {showBet && (
+            <span style={{ color: "rgba(255,255,255,0.35)", fontSize: fontSize * 0.85, minWidth: fontSize * 3, textAlign: "right" }}>
+              {formatCurrency(e.betSize)}
+            </span>
+          )}
           {showCost && (
-            <span className="text-white/60">{formatCurrency(e.cost)}</span>
+            <span style={{ color: "rgba(255,255,255,0.4)", fontSize: fontSize * 0.85, minWidth: fontSize * 3, textAlign: "right" }}>
+              {formatCurrency(e.cost)}
+            </span>
           )}
           {showResult && (
-            <span className={e.result ? (isWin ? "text-green-400" : "text-red-400") : "text-white/20"}>
+            <span
+              style={{
+                color: e.result ? (isWin ? "#4ade80" : "#f87171") : "rgba(255,255,255,0.15)",
+                fontSize: fontSize * 0.85,
+                fontWeight: e.result ? 600 : 400,
+                minWidth: fontSize * 3.5,
+                textAlign: "right",
+              }}
+            >
               {e.result ? formatCurrency(e.result) : "\u2014"}
             </span>
           )}
           {showMultiplier && (
-            <span className={e.status === "playing" ? "text-red-400 animate-pulse" : e.multiplier ? "text-yellow-400" : "text-white/20"}>
-              {e.status === "playing" ? "LIVE" : e.multiplier ? formatMultiplier(e.multiplier) : "\u2014"}
+            <span
+              style={{
+                color: isPlaying ? "#f87171" : e.multiplier ? "#facc15" : "rgba(255,255,255,0.15)",
+                fontSize: fontSize * 0.85,
+                fontWeight: 600,
+                minWidth: fontSize * 3,
+                textAlign: "right",
+              }}
+              className={isPlaying ? "animate-pulse" : ""}
+            >
+              {isPlaying ? "LIVE" : e.multiplier ? formatMultiplier(e.multiplier) : "\u2014"}
             </span>
           )}
         </div>
