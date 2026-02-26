@@ -332,7 +332,8 @@ function CurrentGameWidget({
             <img
               src={gameImage}
               alt={playing.gameName}
-              className="h-full w-auto object-cover rounded-lg"
+              className="rounded-lg"
+              style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
             />
           </div>
         )}
@@ -381,11 +382,12 @@ function CurrentGameWidget({
     <div className="flex h-full gap-0">
       {/* Left: Game Image */}
       {canShowImage && gameImage && (
-        <div className="h-full flex-shrink-0 flex items-center p-2">
+        <div className="h-full flex-shrink-0 flex items-center p-2" style={{ maxWidth: "40%" }}>
           <img
             src={gameImage}
             alt={playing.gameName}
-            className="h-full w-auto object-cover flex-shrink-0 rounded-lg"
+            className="rounded-lg"
+            style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
           />
         </div>
       )}
