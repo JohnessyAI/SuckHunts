@@ -105,7 +105,7 @@ export default function HuntControlPanel() {
         setSearchResults(results);
         setShowResults(results.length > 0);
       }
-    }, 200);
+    }, 80);
   }, []);
 
   // Close dropdown on click outside
@@ -318,27 +318,12 @@ export default function HuntControlPanel() {
         ))}
       </div>
 
-      {/* Entries Table */}
-      <div className="glass-card rounded-xl border border-white/5 overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-white/5">
-          <h2 className="font-outfit font-semibold">Games</h2>
-          {hunt.status !== "completed" && (
-            <button
-              onClick={() => setShowAdd(!showAdd)}
-              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-400 transition-colors"
-            >
-              {showAdd ? <X size={14} /> : <Plus size={14} />}
-              {showAdd ? "Cancel" : "Add Game"}
-            </button>
-          )}
-        </div>
-
-        {/* Add Game Form */}
-        {showAdd && (
-          <form
-            onSubmit={addEntry}
-            className="p-4 border-b border-white/5 bg-white/[0.01]"
-          >
+      {/* Add Game Form */}
+      {showAdd && (
+        <form
+          onSubmit={addEntry}
+          className="glass-card rounded-xl border border-white/5 p-4 mb-3"
+        >
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="relative sm:col-span-2" ref={dropdownRef}>
                 {selectedGame ? (
@@ -347,7 +332,7 @@ export default function HuntControlPanel() {
                       <img
                         src={selectedGame.imageUrl}
                         alt=""
-                        className="w-6 h-6 rounded object-cover flex-shrink-0"
+                        className="w-8 h-8 rounded object-cover flex-shrink-0"
                       />
                     )}
                     <span className="truncate text-white text-sm flex-1">
@@ -395,10 +380,10 @@ export default function HuntControlPanel() {
                           <img
                             src={game.imageUrl}
                             alt=""
-                            className="w-8 h-8 rounded object-cover flex-shrink-0"
+                            className="w-10 h-10 rounded object-cover flex-shrink-0"
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded bg-white/5 flex-shrink-0" />
+                          <div className="w-10 h-10 rounded bg-white/5 flex-shrink-0" />
                         )}
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-white truncate">{game.name}</p>
@@ -420,7 +405,7 @@ export default function HuntControlPanel() {
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2 hover:bg-white/5 transition-colors text-left border-t border-white/5"
                     >
-                      <div className="w-8 h-8 rounded bg-white/5 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded bg-white/5 flex items-center justify-center flex-shrink-0">
                         <Plus size={14} className="text-gray-500" />
                       </div>
                       <p className="text-sm text-gray-400">
@@ -455,8 +440,23 @@ export default function HuntControlPanel() {
             >
               {adding ? "Adding..." : "Add to Hunt"}
             </button>
-          </form>
-        )}
+        </form>
+      )}
+
+      {/* Entries Table */}
+      <div className="glass-card rounded-xl border border-white/5 overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-white/5">
+          <h2 className="font-outfit font-semibold">Games</h2>
+          {hunt.status !== "completed" && (
+            <button
+              onClick={() => setShowAdd(!showAdd)}
+              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-400 transition-colors"
+            >
+              {showAdd ? <X size={14} /> : <Plus size={14} />}
+              {showAdd ? "Cancel" : "Add Game"}
+            </button>
+          )}
+        </div>
 
         {/* Entry List */}
         {hunt.entries.length === 0 ? (
@@ -495,10 +495,10 @@ export default function HuntControlPanel() {
                     <img
                       src={entry.gameImage}
                       alt=""
-                      className="w-7 h-7 rounded object-cover flex-shrink-0"
+                      className="w-9 h-9 rounded object-cover flex-shrink-0"
                     />
                   ) : (
-                    <div className="w-7 h-7 rounded bg-white/5 flex-shrink-0" />
+                    <div className="w-9 h-9 rounded bg-white/5 flex-shrink-0" />
                   )}
                   <div className="min-w-0">
                     <span className="truncate text-white font-medium block text-sm">
