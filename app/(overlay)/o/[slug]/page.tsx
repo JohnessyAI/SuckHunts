@@ -62,12 +62,30 @@ export default function ObsOverlayPage() {
   const [currentGameData, setCurrentGameData] = useState<CurrentGameData | null>(null);
 
   // Force transparent background on html/body for OBS
+  // Override root layout's bg-black, globals.css body styles, and noise grain overlay
   useEffect(() => {
     document.documentElement.style.background = "transparent";
     document.body.style.background = "transparent";
+    document.body.style.overflow = "hidden";
+    document.body.style.margin = "0";
+    document.body.style.padding = "0";
+
+    // Kill the noise grain body::after pseudo-element (can't target with inline styles)
+    const style = document.createElement("style");
+    style.id = "obs-overlay-overrides";
+    style.textContent = `
+      body::after { display: none !important; }
+      html, body { background: transparent !important; }
+    `;
+    document.head.appendChild(style);
+
     return () => {
       document.documentElement.style.background = "";
       document.body.style.background = "";
+      document.body.style.overflow = "";
+      document.body.style.margin = "";
+      document.body.style.padding = "";
+      style.remove();
     };
   }, []);
 

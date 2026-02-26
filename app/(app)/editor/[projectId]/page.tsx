@@ -687,10 +687,11 @@ export default function OverlayEditorPage() {
           }}
         >
           <div
-            className="relative border border-white/10 bg-black flex-shrink-0"
+            className="relative border-2 border-white/20 bg-black flex-shrink-0 overflow-hidden"
             style={{
               width: (activeScene?.width ?? 1920) * scale,
               height: (activeScene?.height ?? 1080) * scale,
+              boxShadow: "0 0 0 1px rgba(255,255,255,0.05), 0 0 40px rgba(0,0,0,0.5)",
             }}
           >
             {/* Checkerboard for transparency */}
