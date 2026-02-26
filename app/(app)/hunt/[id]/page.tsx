@@ -322,7 +322,7 @@ export default function HuntControlPanel() {
       {showAdd && (
         <form
           onSubmit={addEntry}
-          className="glass-card rounded-xl border border-white/5 p-4 mb-3"
+          className="glass-card rounded-xl border border-white/5 p-4 mb-3 relative z-20"
         >
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="relative sm:col-span-2" ref={dropdownRef}>
@@ -368,7 +368,7 @@ export default function HuntControlPanel() {
 
                 {/* Search Results Dropdown */}
                 {showResults && searchResults.length > 0 && (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
+                  <div className="absolute z-[100] top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl max-h-64 overflow-y-auto">
                     {searchResults.map((game) => (
                       <button
                         key={game.slug}
