@@ -219,11 +219,8 @@ export default function PublicViewerPage() {
                 </div>
 
                 <div className="flex items-center gap-6 flex-shrink-0 text-xs">
-                  <span className="text-gray-500 w-14 text-right">
+                  <span className="text-gray-400 w-16 text-right">
                     {formatCurrency(entry.betSize, cur)}
-                  </span>
-                  <span className="text-white w-16 text-right">
-                    {formatCurrency(entry.cost, cur)}
                   </span>
                   <span
                     className={`w-20 text-right font-medium ${

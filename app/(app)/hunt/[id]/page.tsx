@@ -15,6 +15,7 @@ import {
   Search,
   Settings,
   ChevronDown,
+  Trophy,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -131,6 +132,13 @@ export default function HuntControlPanel() {
     }, 80);
   }, []);
 
+  // Focus result input when recordingId changes (auto-advance)
+  useEffect(() => {
+    if (recordingId && resultInputRef.current) {
+      resultInputRef.current.focus();
+    }
+  }, [recordingId]);
+
   // Close dropdown on click outside
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -182,6 +190,8 @@ export default function HuntControlPanel() {
     fetchHunt();
   };
 
+  const resultInputRef = useRef<HTMLInputElement>(null);
+
   const recordResult = async (entryId: string) => {
     if (!resultValue) return;
     await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
@@ -189,17 +199,15 @@ export default function HuntControlPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ result: parseFloat(resultValue) }),
     });
-    setRecordingId(null);
+    // Find the next unrecorded entry
+    const currentIndex = hunt?.entries.findIndex((e) => e.id === entryId) ?? -1;
+    const nextEntry = hunt?.entries.slice(currentIndex + 1).find((e) => e.status !== "completed");
     setResultValue("");
-    fetchHunt();
-  };
-
-  const setPlaying = async (entryId: string) => {
-    await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "playing" }),
-    });
+    if (nextEntry) {
+      setRecordingId(nextEntry.id);
+    } else {
+      setRecordingId(null);
+    }
     fetchHunt();
   };
 
@@ -267,6 +275,22 @@ export default function HuntControlPanel() {
           .filter((e) => e.multiplier)
           .reduce((s, e) => s + parseFloat(e.multiplier!), 0) / completed
       : 0;
+  const biggestWin = completedEntries.length > 0
+    ? completedEntries.reduce((best, e) => {
+        const r = e.result ? parseFloat(e.result) : 0;
+        return r > best.amount
+          ? { amount: r, name: e.gameName, image: e.gameImage, bet: parseFloat(e.betSize), multi: e.multiplier ? parseFloat(e.multiplier) : null }
+          : best;
+      }, { amount: 0, name: "", image: null as string | null, bet: 0, multi: null as number | null })
+    : null;
+  const bestMulti = completedEntries.length > 0
+    ? completedEntries.reduce((best, e) => {
+        const m = e.multiplier ? parseFloat(e.multiplier) : 0;
+        return m > best.value ? { value: m, name: e.gameName } : best;
+      }, { value: 0, name: "" })
+    : null;
+  const wins = completedEntries.filter((e) => e.result && parseFloat(e.result) > parseFloat(e.betSize)).length;
+  const losses = completed - wins;
 
   return (
     <div>
@@ -655,6 +679,36 @@ export default function HuntControlPanel() {
               </tr>
             </thead>
             <tbody>
+              {/* Best Win Row */}
+              {biggestWin && biggestWin.amount > 0 && (
+                <tr className="bg-yellow-500/[0.04] border-b border-yellow-500/10">
+                  <td className="px-4 py-2.5 text-yellow-500">
+                    <Trophy size={14} />
+                  </td>
+                  <td className="py-2.5 pr-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {biggestWin.image && (
+                        <img src={biggestWin.image} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <span className="text-yellow-400 font-medium text-xs block truncate">
+                          Best Win — {biggestWin.name}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-xs text-yellow-400/60">
+                    {formatCurrency(biggestWin.bet, cur)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-xs text-yellow-400 font-semibold">
+                    {formatCurrency(biggestWin.amount, cur)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-xs text-yellow-400 font-semibold">
+                    {biggestWin.multi ? formatMultiplier(biggestWin.multi) : "—"}
+                  </td>
+                  {hunt.status !== "completed" && <td />}
+                </tr>
+              )}
               {hunt.entries.map((entry, i) => {
                 const cost = parseFloat(entry.cost);
                 const result = entry.result !== null ? parseFloat(entry.result) : null;
@@ -719,9 +773,16 @@ export default function HuntControlPanel() {
                           className="flex items-center gap-1 justify-end"
                         >
                           <input
+                            ref={resultInputRef}
                             type="number"
                             value={resultValue}
                             onChange={(e) => setResultValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") {
+                                setRecordingId(null);
+                                setResultValue("");
+                              }
+                            }}
                             className="w-24 bg-white/5 border border-white/10 rounded-md px-2 py-1 text-sm text-right text-white focus:border-red-500/50 focus:outline-none"
                             step="0.01"
                             autoFocus
@@ -746,16 +807,16 @@ export default function HuntControlPanel() {
                         >
                           {formatCurrency(result, cur)}
                         </span>
-                      ) : entry.status === "playing" ? (
-                        <button
+                      ) : hunt.status !== "completed" ? (
+                        <span
+                          className="text-gray-700 cursor-pointer hover:text-gray-400 transition-colors"
                           onClick={() => {
                             setRecordingId(entry.id);
                             setResultValue("");
                           }}
-                          className="text-red-400 text-xs font-medium animate-pulse"
                         >
-                          Record &rarr;
-                        </button>
+                          &mdash;
+                        </span>
                       ) : (
                         <span className="text-gray-700">&mdash;</span>
                       )}
@@ -783,24 +844,13 @@ export default function HuntControlPanel() {
                     {/* Actions */}
                     {hunt.status !== "completed" && (
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {entry.status === "pending" && (
-                            <button
-                              onClick={() => setPlaying(entry.id)}
-                              className="text-gray-600 hover:text-red-400 transition-colors"
-                              title="Set as playing"
-                            >
-                              <Play size={14} />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => deleteEntry(entry.id)}
-                            className="text-gray-700 hover:text-red-400 transition-colors"
-                            title="Remove"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => deleteEntry(entry.id)}
+                          className="text-gray-700 hover:text-red-400 transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -808,6 +858,39 @@ export default function HuntControlPanel() {
               })}
             </tbody>
           </table>
+        )}
+
+        {/* Game Stats */}
+        {completed > 0 && (
+          <div className="border-t border-white/5 px-4 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-gray-500">
+            <span>
+              <span className="text-gray-400 font-medium">{completed}</span> played
+            </span>
+            <span>
+              <span className="text-green-400 font-medium">{wins}W</span>
+              {" / "}
+              <span className="text-red-400 font-medium">{losses}L</span>
+            </span>
+            {biggestWin && biggestWin.amount > 0 && (
+              <span className="flex items-center gap-1">
+                <Trophy size={12} className="text-yellow-400" />
+                Biggest win{" "}
+                <span className="text-green-400 font-medium">
+                  {formatCurrency(biggestWin.amount, cur)}
+                </span>
+                <span className="text-gray-600">({biggestWin.name})</span>
+              </span>
+            )}
+            {bestMulti && bestMulti.value > 0 && (
+              <span>
+                Best multi{" "}
+                <span className="text-yellow-400 font-medium">
+                  {formatMultiplier(bestMulti.value)}
+                </span>
+                <span className="text-gray-600"> ({bestMulti.name})</span>
+              </span>
+            )}
+          </div>
         )}
       </div>
     </div>
