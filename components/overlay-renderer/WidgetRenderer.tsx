@@ -571,17 +571,20 @@ function WidgetContent({
     }
 
     case "biggest-win": {
-      const baseFontSize = c(config, "fontSize", 14) as number ?? 28;
-      const adaptedSize = width < 200 ? Math.min(baseFontSize, width * 0.12) : baseFontSize;
       if (!bestEntry) return placeholder("Biggest Win");
+      // Scale font to fill the widget — constrained by both width and height
+      const mainSize = Math.max(14, Math.min(width * 0.14, height * 0.25));
+      const subSize = Math.max(10, mainSize * 0.45);
       return (
-        <div className="flex items-center justify-center h-full px-4">
-          <div className="text-center">
-            <p className="text-yellow-400 font-bold" style={{ fontSize: adaptedSize }}>
+        <div className="flex items-center justify-center h-full w-full px-4">
+          <div className="text-center w-full">
+            <p className="text-yellow-400 font-bold leading-tight" style={{ fontSize: mainSize }}>
               {formatMultiplier(bestEntry.multiplier!)}
             </p>
-            {c(config, "showGame") && width >= 200 && (
-              <p className="text-white/60 text-sm mt-1 truncate">{bestEntry.gameName}</p>
+            {c(config, "showGame") && (
+              <p className="text-white/60 truncate mt-1" style={{ fontSize: subSize }}>
+                {bestEntry.gameName}
+              </p>
             )}
           </div>
         </div>
@@ -589,40 +592,49 @@ function WidgetContent({
     }
 
     case "running-totals": {
-      const baseFontSize = c(config, "fontSize", 14) as number ?? 16;
       // Auto-switch layout based on aspect ratio
       const configLayout = c(config, "layout");
       const isHorizontal = configLayout === "horizontal"
-        ? width > 200
+        ? true
         : configLayout === "vertical"
         ? false
-        : width > height * 2;
-      const compact = width < 300 && isHorizontal;
+        : width > height * 1.5;
+
+      // Count visible stats to compute per-item space
+      const showProfit = c(config, "showProfit") as boolean;
+      const showAvg = c(config, "showAvg") as boolean;
+      const statCount = 2 + (showProfit ? 1 : 0) + (showAvg ? 1 : 0);
+
+      // Scale font to fill: divide by stat count, constrained by both axes
+      const perItemW = isHorizontal ? width / statCount : width;
+      const perItemH = isHorizontal ? height : height / statCount;
+      const valSize = Math.max(12, Math.min(perItemW * 0.18, perItemH * 0.4));
+      const labelSize = Math.max(8, valSize * 0.5);
+
       return (
         <div
-          className={`flex ${isHorizontal ? "flex-row" : "flex-col"} items-center justify-around h-full px-4`}
-          style={{ fontSize: compact ? Math.min(baseFontSize, 12) : baseFontSize }}
+          className={`flex ${isHorizontal ? "flex-row" : "flex-col"} items-center justify-around h-full w-full px-4`}
         >
           <div className="text-center">
-            <p className="text-white/40 text-[10px] uppercase">Cost</p>
-            <p className="text-white font-bold">{formatCurrency(totalCost)}</p>
+            <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Cost</p>
+            <p className="text-white font-bold" style={{ fontSize: valSize }}>{formatCurrency(totalCost)}</p>
           </div>
           <div className="text-center">
-            <p className="text-white/40 text-[10px] uppercase">Won</p>
-            <p className="text-green-400 font-bold">{formatCurrency(totalWon)}</p>
+            <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Won</p>
+            <p className="text-green-400 font-bold" style={{ fontSize: valSize }}>{formatCurrency(totalWon)}</p>
           </div>
-          {c(config, "showProfit") && (!compact || width >= 250) && (
+          {showProfit && (
             <div className="text-center">
-              <p className="text-white/40 text-[10px] uppercase">Profit</p>
-              <p className={`font-bold ${profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+              <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Profit</p>
+              <p className={`font-bold ${profit >= 0 ? "text-green-400" : "text-red-400"}`} style={{ fontSize: valSize }}>
                 {profit >= 0 ? "+" : ""}{formatCurrency(profit)}
               </p>
             </div>
           )}
-          {c(config, "showAvg") && !compact && (
+          {showAvg && (
             <div className="text-center">
-              <p className="text-white/40 text-[10px] uppercase">Avg</p>
-              <p className="text-yellow-400 font-bold">{formatMultiplier(avgMultiplier)}</p>
+              <p className="text-white/40 uppercase font-medium" style={{ fontSize: labelSize }}>Avg</p>
+              <p className="text-yellow-400 font-bold" style={{ fontSize: valSize }}>{formatMultiplier(avgMultiplier)}</p>
             </div>
           )}
         </div>
@@ -634,15 +646,17 @@ function WidgetContent({
       const done = completed.length;
       const pct = total > 0 ? (done / total) * 100 : 0;
       const barColor = c(config, "barColor", "#ef4444") as string ?? "#ef4444";
+      const barH = Math.max(4, Math.min(height * 0.3, 20));
+      const labelSize = Math.max(9, Math.min(width * 0.04, height * 0.2, 16));
       return (
         <div className="flex flex-col justify-center h-full px-4">
           {c(config, "showLabel") && height >= 40 && (
-            <div className="flex justify-between text-xs text-white/50 mb-1">
+            <div className="flex justify-between text-white/50 mb-1" style={{ fontSize: labelSize }}>
               <span>Progress</span>
               {c(config, "showCount") && <span>{done}/{total}</span>}
             </div>
           )}
-          <div className="bg-white/10 rounded-full overflow-hidden" style={{ height: Math.max(4, Math.min(12, height * 0.2)) }}>
+          <div className="bg-white/10 rounded-full overflow-hidden" style={{ height: barH }}>
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${pct}%`, backgroundColor: barColor }}
@@ -656,15 +670,15 @@ function WidgetContent({
       const count = c(config, "count", 5) as number ?? 3;
       const pending = entries.filter((e) => e.status === "pending");
       if (!pending.length) return placeholder("Next Up");
-      const baseFontSize = c(config, "fontSize", 14) as number ?? 14;
-      // Show fewer items if height is small
-      const maxVisible = Math.max(1, Math.floor(height / (baseFontSize * 2)));
+      // Scale font to fit height — each row needs ~2.2x fontSize of space
+      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, pending.length) / 2.2));
+      const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = pending.slice(0, Math.min(count, maxVisible));
       return (
-        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: baseFontSize }}>
+        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: rowFontSize }}>
           {visible.map((e, i) => (
             <div key={e.id} className="flex items-center gap-2 text-white/70">
-              <span className="text-white/30 w-4 text-right text-xs">{i + 1}</span>
+              <span className="text-white/30 text-right" style={{ width: rowFontSize * 1.2, fontSize: rowFontSize * 0.8 }}>{i + 1}</span>
               <span className="truncate">{e.gameName}</span>
               {c(config, "showBet") && width >= 200 && (
                 <span className="ml-auto text-white/40 flex-shrink-0">
@@ -681,11 +695,11 @@ function WidgetContent({
       const count = c(config, "count", 5) as number ?? 5;
       const recent = [...completed].reverse().slice(0, count);
       if (!recent.length) return placeholder("Recent Results");
-      const baseFontSize = c(config, "fontSize", 14) as number ?? 14;
-      const maxVisible = Math.max(1, Math.floor(height / (baseFontSize * 2)));
+      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, recent.length) / 2.2));
+      const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = recent.slice(0, maxVisible);
       return (
-        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: baseFontSize }}>
+        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: rowFontSize }}>
           {visible.map((e) => {
             const isWin = parseFloat(e.result!) > parseFloat(e.cost);
             return (
@@ -713,14 +727,14 @@ function WidgetContent({
         .sort((a, b) => parseFloat(b.multiplier!) - parseFloat(a.multiplier!))
         .slice(0, count);
       if (!ranked.length) return placeholder("Top Wins");
-      const baseFontSize = c(config, "fontSize", 14) as number ?? 14;
-      const maxVisible = Math.max(1, Math.floor(height / (baseFontSize * 2)));
+      const rowFontSize = Math.max(10, Math.min(width * 0.05, height / Math.min(count, ranked.length) / 2.2));
+      const maxVisible = Math.max(1, Math.floor(height / (rowFontSize * 2.2)));
       const visible = ranked.slice(0, maxVisible);
       return (
-        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: baseFontSize }}>
+        <div className="h-full px-3 py-2 space-y-1" style={{ fontSize: rowFontSize }}>
           {visible.map((e, i) => (
             <div key={e.id} className="flex items-center gap-2">
-              <span className={`font-bold w-5 text-right ${i === 0 ? "text-yellow-400" : "text-white/40"}`}>
+              <span className={`font-bold text-right ${i === 0 ? "text-yellow-400" : "text-white/40"}`} style={{ width: rowFontSize * 1.5 }}>
                 #{i + 1}
               </span>
               <span className="truncate text-white">{e.gameName}</span>
@@ -735,13 +749,14 @@ function WidgetContent({
 
     case "custom-text": {
       const text = c(config, "text", "Your text here") as string ?? "Your text here";
-      const fontSize = c(config, "fontSize", 14) as number ?? 24;
       const color = c(config, "color", "#ffffff") as string ?? "#ffffff";
       const fontWeight = c(config, "fontWeight", "bold") as string ?? "bold";
       const align = c(config, "align", "center") as string ?? "center";
+      // Scale text to fill: constrained by width (chars) and height
+      const adaptedFontSize = Math.max(10, Math.min(width * 0.08, height * 0.4));
       return (
         <div className="flex items-center justify-center h-full px-4" style={{ textAlign: align as React.CSSProperties["textAlign"] }}>
-          <p style={{ fontSize, color, fontWeight: fontWeight as React.CSSProperties["fontWeight"] }} className="w-full">
+          <p style={{ fontSize: adaptedFontSize, color, fontWeight: fontWeight as React.CSSProperties["fontWeight"] }} className="w-full leading-tight">
             {text}
           </p>
         </div>
@@ -763,9 +778,9 @@ function WidgetContent({
     }
 
     case "timer": {
-      const baseFontSize = c(config, "fontSize", 14) as number ?? 28;
-      const adaptedSize = Math.min(baseFontSize, height * 0.5, width * 0.15);
       const color = c(config, "color", "#ffffff") as string ?? "#ffffff";
+      // "00:00:00" is ~8 chars wide — scale to fill
+      const adaptedSize = Math.max(12, Math.min(width * 0.12, height * 0.45));
       return (
         <div className="flex items-center justify-center h-full">
           <p style={{ fontSize: adaptedSize, color }} className="font-mono font-bold">
