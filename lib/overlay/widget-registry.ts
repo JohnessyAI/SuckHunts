@@ -21,10 +21,10 @@ export const WIDGET_TYPES: WidgetType[] = [
   {
     type: "current-game",
     label: "Currently Playing",
-    description: "Shows the game currently being played",
-    defaultWidth: 400,
-    defaultHeight: 120,
-    defaultConfig: { showProvider: true, showBet: true, showImage: true, fontSize: 24 },
+    description: "Game info, stats & personal record",
+    defaultWidth: 650,
+    defaultHeight: 140,
+    defaultConfig: { showProvider: true, showBet: true, showImage: true, showInfo: true, showRecord: true, fontSize: 20, bgColor: "#000000", bgOpacity: 0.7, borderRadius: 12, padding: 0 },
     category: "hunt",
   },
   {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import WidgetRenderer from "@/components/overlay-renderer/WidgetRenderer";
+import WidgetRenderer, { type CurrentGameData } from "@/components/overlay-renderer/WidgetRenderer";
 
 interface Widget {
   id: string;
@@ -59,6 +59,17 @@ export default function ObsOverlayPage() {
 
   const [project, setProject] = useState<Project | null>(null);
   const [huntData, setHuntData] = useState<HuntData | null>(null);
+  const [currentGameData, setCurrentGameData] = useState<CurrentGameData | null>(null);
+
+  // Force transparent background on html/body for OBS
+  useEffect(() => {
+    document.documentElement.style.background = "transparent";
+    document.body.style.background = "transparent";
+    return () => {
+      document.documentElement.style.background = "";
+      document.body.style.background = "";
+    };
+  }, []);
 
   // Fetch overlay project data
   useEffect(() => {
@@ -73,13 +84,17 @@ export default function ObsOverlayPage() {
               fetch(`/api/hunts/${data.activeHuntId}/public`)
                 .then((r) => (r.ok ? r.json() : null))
                 .then(setHuntData);
+
+              // Fetch enriched current game data
+              fetch(`/api/hunts/${data.activeHuntId}/current-game`)
+                .then((r) => (r.ok ? r.json() : null))
+                .then(setCurrentGameData);
             }
           }
         });
     };
 
     fetchOverlay();
-    // Poll for updates
     const interval = setInterval(fetchOverlay, 3000);
     return () => clearInterval(interval);
   }, [slug]);
@@ -140,6 +155,7 @@ export default function ObsOverlayPage() {
               width={widget.width}
               height={widget.height}
               huntData={huntData}
+              currentGameData={currentGameData}
             />
           </div>
         ))}

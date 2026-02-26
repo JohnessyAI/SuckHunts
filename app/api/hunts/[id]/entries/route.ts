@@ -50,5 +50,13 @@ export async function POST(
     data: { totalCost: { increment: cost } },
   });
 
+  // Increment game popularity counter
+  if (gameSlug) {
+    await prisma.game.update({
+      where: { slug: gameSlug },
+      data: { timesUsedInHunts: { increment: 1 } },
+    }).catch(() => {}); // Ignore if game not in catalog
+  }
+
   return NextResponse.json(entry, { status: 201 });
 }

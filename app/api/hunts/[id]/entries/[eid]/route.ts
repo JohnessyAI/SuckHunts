@@ -41,6 +41,70 @@ export async function PATCH(
       where: { id: huntId },
       data: { totalWon: { increment: diff } },
     });
+
+    // Auto-update GameStat (personal records)
+    if (entry.gameSlug) {
+      const multiplier = entry.cost.toNumber() > 0 ? result / entry.cost.toNumber() : 0;
+      const betSize = entry.betSize.toNumber();
+      const betKey = betSize.toFixed(2);
+      const costNum = entry.cost.toNumber();
+
+      const existing = await prisma.gameStat.findUnique({
+        where: { userId_gameSlug: { userId: session.user.id, gameSlug: entry.gameSlug } },
+      });
+
+      if (existing) {
+        const newTimesPlayed = existing.timesPlayed + 1;
+        const newTotalWon = existing.totalWon.toNumber() + result;
+        const newTotalSpent = existing.totalSpent.toNumber() + costNum;
+        const newAvgMulti =
+          (existing.avgMultiplier.toNumber() * existing.timesPlayed + multiplier) / newTimesPlayed;
+
+        // Per-bet-size records
+        const betRecords = (existing.betSizeRecords as Record<string, Record<string, number>>) || {};
+        const prev = betRecords[betKey] || { bestWin: 0, bestMulti: 0, timesPlayed: 0, totalWon: 0 };
+        betRecords[betKey] = {
+          bestWin: Math.max(prev.bestWin, result),
+          bestMulti: Math.max(prev.bestMulti, multiplier),
+          timesPlayed: prev.timesPlayed + 1,
+          totalWon: prev.totalWon + result,
+        };
+
+        await prisma.gameStat.update({
+          where: { id: existing.id },
+          data: {
+            timesPlayed: newTimesPlayed,
+            totalSpent: newTotalSpent,
+            totalWon: newTotalWon,
+            biggestWin: Math.max(existing.biggestWin.toNumber(), result),
+            biggestMultiplier: Math.max(existing.biggestMultiplier.toNumber(), multiplier),
+            biggestWinBet: result > existing.biggestWin.toNumber() ? betSize : existing.biggestWinBet,
+            biggestMultiBet: multiplier > existing.biggestMultiplier.toNumber() ? betSize : existing.biggestMultiBet,
+            avgMultiplier: newAvgMulti,
+            betSizeRecords: betRecords,
+          },
+        });
+      } else {
+        await prisma.gameStat.create({
+          data: {
+            userId: session.user.id,
+            gameSlug: entry.gameSlug,
+            gameName: entry.gameName,
+            timesPlayed: 1,
+            totalSpent: costNum,
+            totalWon: result,
+            biggestWin: result,
+            biggestMultiplier: multiplier,
+            biggestWinBet: betSize,
+            biggestMultiBet: betSize,
+            avgMultiplier: multiplier,
+            betSizeRecords: {
+              [betKey]: { bestWin: result, bestMulti: multiplier, timesPlayed: 1, totalWon: result },
+            },
+          },
+        });
+      }
+    }
   }
 
   if (body.status !== undefined) {

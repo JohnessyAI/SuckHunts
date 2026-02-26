@@ -16,7 +16,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { WIDGET_TYPES } from "@/lib/overlay/widget-registry";
-import WidgetRenderer from "@/components/overlay-renderer/WidgetRenderer";
+import WidgetRenderer, { type CurrentGameData } from "@/components/overlay-renderer/WidgetRenderer";
 import WidgetConfigPanel from "@/components/overlay-editor/WidgetConfigPanel";
 import { MOCK_HUNT_DATA } from "@/lib/overlay/mock-hunt-data";
 
@@ -115,6 +115,7 @@ export default function OverlayEditorPage() {
 
   const [huntData, setHuntData] = useState<HuntData | null>(null);
   const [huntDataLoaded, setHuntDataLoaded] = useState(false);
+  const [currentGameData, setCurrentGameData] = useState<CurrentGameData | null>(null);
 
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
@@ -143,6 +144,10 @@ export default function OverlayEditorPage() {
               status: e.status as string,
             })),
           });
+          // Also fetch enriched current game data
+          fetch(`/api/hunts/${hunt.id}/current-game`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then(setCurrentGameData);
         }
         setHuntDataLoaded(true);
       });
@@ -744,6 +749,7 @@ export default function OverlayEditorPage() {
                         width={widget.width}
                         height={widget.height}
                         huntData={huntData ?? (huntDataLoaded ? MOCK_HUNT_DATA : undefined)}
+                        currentGameData={currentGameData}
                         isEditor
                       />
                     </div>

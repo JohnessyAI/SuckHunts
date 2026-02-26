@@ -29,13 +29,73 @@ interface HuntData {
   entries: HuntEntry[];
 }
 
+export interface CurrentGameData {
+  gameName: string;
+  gameImage: string | null;
+  gameProvider: string | null;
+  betSize: string;
+  info: {
+    rtp: string | null;
+    volatility: string | null;
+    maxWin: string | null;
+  } | null;
+  personalRecord: {
+    timesPlayed: number;
+    biggestWin: number;
+    biggestWinBet: number;
+    biggestMultiplier: number;
+    biggestMultiBet: number;
+    avgMultiplier: number;
+    atCurrentBet: {
+      bestWin: number;
+      bestMulti: number;
+      timesPlayed: number;
+      avgWin: number;
+    } | null;
+  } | null;
+}
+
 interface WidgetRendererProps {
   type: string;
   config: Record<string, unknown>;
   width: number;
   height: number;
   huntData?: HuntData | null;
+  currentGameData?: CurrentGameData | null;
   isEditor?: boolean;
+}
+
+function getStyleWrapper(config: Record<string, unknown>): React.CSSProperties {
+  const bgColor = c(config, "bgColor") as string | undefined;
+  const bgOpacity = c(config, "bgOpacity", 0) as number;
+  const borderRadius = c(config, "borderRadius", 0) as number;
+  const borderColor = c(config, "borderColor") as string | undefined;
+  const borderWidth = c(config, "borderWidth", 0) as number;
+  const padding = c(config, "padding", 0) as number;
+
+  const style: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    borderRadius,
+    padding,
+    overflow: "hidden",
+    boxSizing: "border-box",
+  };
+
+  if (bgColor && bgOpacity > 0) {
+    // Convert hex to rgba
+    const hex = bgColor.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16) || 0;
+    const g = parseInt(hex.substring(2, 4), 16) || 0;
+    const b = parseInt(hex.substring(4, 6), 16) || 0;
+    style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${bgOpacity})`;
+  }
+
+  if (borderColor && borderWidth > 0) {
+    style.border = `${borderWidth}px solid ${borderColor}`;
+  }
+
+  return style;
 }
 
 export default function WidgetRenderer({
@@ -44,6 +104,7 @@ export default function WidgetRenderer({
   width,
   height,
   huntData,
+  currentGameData,
   isEditor,
 }: WidgetRendererProps) {
   const def = getWidgetType(type);
@@ -51,13 +112,18 @@ export default function WidgetRenderer({
   const refH = def?.defaultHeight ?? height;
   const needsScale = width !== refW || height !== refH;
 
+  const styleWrapper = getStyleWrapper(config);
+
   const content = (
-    <WidgetContent
-      type={type}
-      config={config}
-      huntData={huntData}
-      isEditor={isEditor}
-    />
+    <div style={styleWrapper}>
+      <WidgetContent
+        type={type}
+        config={config}
+        huntData={huntData}
+        currentGameData={currentGameData}
+        isEditor={isEditor}
+      />
+    </div>
   );
 
   if (!needsScale) return <div style={{ width, height }}>{content}</div>;
@@ -89,14 +155,14 @@ function HuntTableWidget({
 }) {
   const fontSize = c(config, "fontSize", 14) as number ?? 14;
   const autoScroll = c(config, "autoScroll", true) as boolean;
-  const scrollSpeed = c(config, "scrollSpeed", 30) as number ?? 30; // px per second
+  const scrollSpeed = c(config, "scrollSpeed", 30) as number ?? 30;
   const containerRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
 
   useEffect(() => {
     if (!innerRef.current) return;
-    const h = innerRef.current.scrollHeight / 2; // half because we duplicate
+    const h = innerRef.current.scrollHeight / 2;
     setContentHeight(h);
   }, [entries, fontSize, config]);
 
@@ -131,12 +197,12 @@ function HuntTableWidget({
           )}
           {c(config, "showResult") && (
             <span className={e.result ? (isWin ? "text-green-400" : "text-red-400") : "text-white/20"}>
-              {e.result ? formatCurrency(e.result) : "—"}
+              {e.result ? formatCurrency(e.result) : "\u2014"}
             </span>
           )}
           {c(config, "showMultiplier") && (
             <span className={e.status === "playing" ? "text-red-400 animate-pulse" : e.multiplier ? "text-yellow-400" : "text-white/20"}>
-              {e.status === "playing" ? "LIVE" : e.multiplier ? formatMultiplier(e.multiplier) : "—"}
+              {e.status === "playing" ? "LIVE" : e.multiplier ? formatMultiplier(e.multiplier) : "\u2014"}
             </span>
           )}
         </div>
@@ -144,7 +210,6 @@ function HuntTableWidget({
     );
   };
 
-  // If auto-scroll is off, just render a static list
   if (!autoScroll) {
     return (
       <div className="h-full overflow-hidden" style={{ fontSize }}>
@@ -155,7 +220,6 @@ function HuntTableWidget({
     );
   }
 
-  // Duration for one full scroll cycle
   const duration = contentHeight > 0 ? contentHeight / scrollSpeed : 20;
 
   return (
@@ -167,9 +231,7 @@ function HuntTableWidget({
           animationDuration: `${duration}s`,
         }}
       >
-        {/* Original entries */}
         {entries.map((e, i) => renderRow(e, i, "a-"))}
-        {/* Duplicate for seamless loop */}
         {entries.map((e, i) => renderRow(e, i, "b-"))}
       </div>
       <style>{`
@@ -185,19 +247,138 @@ function HuntTableWidget({
   );
 }
 
+function CurrentGameWidget({
+  config,
+  playing,
+  currentGameData,
+  isEditor,
+}: {
+  config: Record<string, unknown>;
+  playing: HuntEntry | undefined;
+  currentGameData?: CurrentGameData | null;
+  isEditor?: boolean;
+}) {
+  const fontSize = c(config, "fontSize", 14) as number ?? 20;
+  const showInfo = c(config, "showInfo", true) as boolean;
+  const showRecord = c(config, "showRecord", true) as boolean;
+
+  if (!playing) {
+    return (
+      <div className="flex items-center justify-center h-full text-white/30 text-sm italic">
+        Currently Playing{isEditor ? " (connect a hunt)" : ""}
+      </div>
+    );
+  }
+
+  const gameImage = currentGameData?.gameImage ?? playing.gameImage;
+  const gameProvider = currentGameData?.gameProvider ?? playing.gameProvider;
+  const info = currentGameData?.info;
+  const record = currentGameData?.personalRecord;
+  const betSize = currentGameData?.betSize ?? playing.betSize;
+  const atBet = record?.atCurrentBet;
+
+  return (
+    <div className="flex h-full gap-0">
+      {/* Left: Game Image */}
+      {c(config, "showImage", true) && gameImage && (
+        <div className="h-full flex-shrink-0 flex items-center p-2">
+          <img
+            src={gameImage}
+            alt={playing.gameName}
+            className="h-full w-auto object-cover flex-shrink-0"
+            style={{ borderRadius: 8, maxWidth: 140 }}
+          />
+        </div>
+      )}
+
+      {/* Center: Game Name + Info */}
+      <div className="flex-1 flex flex-col justify-center min-w-0 px-3 py-2">
+        <p className="text-white/40 text-[9px] uppercase tracking-wider font-medium">Current Game</p>
+        <p className="text-white font-bold truncate leading-tight" style={{ fontSize }}>
+          {playing.gameName}
+        </p>
+        {c(config, "showProvider") && gameProvider && (
+          <p className="text-white/40 text-xs">{gameProvider}</p>
+        )}
+
+        {showInfo && info && (
+          <div className="flex gap-3 mt-2">
+            {info.maxWin && (
+              <div>
+                <p className="text-white/30 text-[8px] uppercase">Potential</p>
+                <p className="text-white text-xs font-semibold">{info.maxWin}</p>
+              </div>
+            )}
+            {info.rtp && (
+              <div>
+                <p className="text-white/30 text-[8px] uppercase">RTP</p>
+                <p className="text-white text-xs font-semibold">{info.rtp}%</p>
+              </div>
+            )}
+            {info.volatility && (
+              <div>
+                <p className="text-white/30 text-[8px] uppercase">Volatility</p>
+                <p className="text-white text-xs font-semibold">{info.volatility}</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Right: Personal Record */}
+      {showRecord && record && (
+        <div className="flex-shrink-0 flex flex-col justify-center px-3 py-2 border-l border-white/10 min-w-[140px]">
+          <p className="text-yellow-400 text-[9px] uppercase tracking-wider font-medium mb-1">Personal Record</p>
+          <div className="space-y-0.5">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-white/40 text-[10px]">WIN</span>
+              <span className="text-white text-xs font-bold">
+                {atBet ? formatCurrency(atBet.bestWin) : formatCurrency(record.biggestWin)}
+                {atBet && <span className="text-white/30 text-[8px] ml-1">(${parseFloat(betSize).toFixed(0)})</span>}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-white/40 text-[10px]">X</span>
+              <span className="text-yellow-400 text-xs font-bold">
+                {atBet ? formatMultiplier(atBet.bestMulti) : formatMultiplier(record.biggestMultiplier)}
+                {atBet && <span className="text-white/30 text-[8px] ml-1">(${parseFloat(betSize).toFixed(0)})</span>}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-white/40 text-[10px]">AVG-WIN</span>
+              <span className="text-white/70 text-xs font-bold">
+                {atBet ? formatCurrency(atBet.avgWin) : formatMultiplier(record.avgMultiplier)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bet badge (only if no record shown) */}
+      {c(config, "showBet") && !showRecord && (
+        <div className="flex-shrink-0 flex flex-col justify-center px-3">
+          <p className="text-white/40 text-xs">BET</p>
+          <p className="text-white font-bold">${parseFloat(playing.betSize).toFixed(2)}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function WidgetContent({
   type,
   config,
   huntData,
+  currentGameData,
   isEditor,
 }: {
   type: string;
   config: Record<string, unknown>;
   huntData?: HuntData | null;
+  currentGameData?: CurrentGameData | null;
   isEditor?: boolean;
 }) {
   const entries = huntData?.entries ?? [];
-  // Current game: explicit "playing" status, or first entry with no result recorded
   const playing = entries.find((e) => e.status === "playing")
     ?? entries.find((e) => e.result == null || e.result === "");
   const completed = entries.filter((e) => e.status === "completed");
@@ -227,32 +408,13 @@ function WidgetContent({
     }
 
     case "current-game": {
-      const fontSize = c(config, "fontSize", 14) as number ?? 24;
-      if (!playing) return placeholder("Currently Playing");
       return (
-        <div className="flex items-center h-full px-4 gap-4">
-          {c(config, "showImage", true) && playing.gameImage && (
-            <img
-              src={playing.gameImage}
-              alt={playing.gameName}
-              className="h-4/5 w-auto rounded object-cover flex-shrink-0"
-            />
-          )}
-          <div className="min-w-0">
-            <p className="text-white font-bold truncate" style={{ fontSize }}>
-              {playing.gameName}
-            </p>
-            {c(config, "showProvider") && playing.gameProvider && (
-              <p className="text-white/40 text-sm">{playing.gameProvider}</p>
-            )}
-          </div>
-          {c(config, "showBet") && (
-            <div className="ml-auto text-right flex-shrink-0">
-              <p className="text-white/40 text-xs">BET</p>
-              <p className="text-white font-bold">${parseFloat(playing.betSize).toFixed(2)}</p>
-            </div>
-          )}
-        </div>
+        <CurrentGameWidget
+          config={config}
+          playing={playing}
+          currentGameData={currentGameData}
+          isEditor={isEditor}
+        />
       );
     }
 
@@ -408,8 +570,8 @@ function WidgetContent({
       const fontWeight = c(config, "fontWeight", "bold") as string ?? "bold";
       const align = c(config, "align", "center") as string ?? "center";
       return (
-        <div className="flex items-center justify-center h-full px-4" style={{ textAlign: align as any }}>
-          <p style={{ fontSize, color, fontWeight: fontWeight as any }} className="w-full">
+        <div className="flex items-center justify-center h-full px-4" style={{ textAlign: align as React.CSSProperties["textAlign"] }}>
+          <p style={{ fontSize, color, fontWeight: fontWeight as React.CSSProperties["fontWeight"] }} className="w-full">
             {text}
           </p>
         </div>

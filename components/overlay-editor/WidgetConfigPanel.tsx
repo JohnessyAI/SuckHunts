@@ -1,12 +1,119 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Upload, Image as ImageIcon } from "lucide-react";
+import { Upload, ChevronDown, ChevronRight } from "lucide-react";
 
 interface WidgetConfigPanelProps {
   widgetType: string;
   config: Record<string, unknown>;
   onConfigChange: (key: string, value: unknown) => void;
+}
+
+function StyleConfigSection({
+  config,
+  onConfigChange,
+}: {
+  config: Record<string, unknown>;
+  onConfigChange: (key: string, value: unknown) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b border-white/5 pb-3 mb-3">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 text-[10px] text-gray-500 uppercase tracking-wider w-full hover:text-gray-300 transition-colors"
+      >
+        {open ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        Style
+      </button>
+      {open && (
+        <div className="space-y-2 mt-2">
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase">Background</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={(config.bgColor as string) || "#000000"}
+                onChange={(e) => onConfigChange("bgColor", e.target.value)}
+                className="w-8 h-8 rounded border border-white/10 cursor-pointer bg-transparent"
+              />
+              <input
+                type="text"
+                value={(config.bgColor as string) || ""}
+                onChange={(e) => onConfigChange("bgColor", e.target.value)}
+                placeholder="transparent"
+                className="form-input text-xs py-1 flex-1"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase">
+              BG Opacity ({Math.round(((config.bgOpacity as number) ?? 0) * 100)}%)
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={(config.bgOpacity as number) ?? 0}
+              onChange={(e) => onConfigChange("bgOpacity", parseFloat(e.target.value))}
+              className="w-full accent-red-500"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase">
+              Border Radius ({(config.borderRadius as number) ?? 0}px)
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="32"
+              step="1"
+              value={(config.borderRadius as number) ?? 0}
+              onChange={(e) => onConfigChange("borderRadius", parseInt(e.target.value))}
+              className="w-full accent-red-500"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase">Border</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={(config.borderColor as string) || "#ffffff"}
+                onChange={(e) => onConfigChange("borderColor", e.target.value)}
+                className="w-8 h-8 rounded border border-white/10 cursor-pointer bg-transparent"
+              />
+              <input
+                type="number"
+                min="0"
+                max="10"
+                value={(config.borderWidth as number) ?? 0}
+                onChange={(e) => onConfigChange("borderWidth", parseInt(e.target.value) || 0)}
+                className="form-input text-xs py-1 w-16"
+                placeholder="Width"
+              />
+              <span className="text-[10px] text-gray-600">px</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-gray-500 uppercase">
+              Padding ({(config.padding as number) ?? 0}px)
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="32"
+              step="2"
+              value={(config.padding as number) ?? 0}
+              onChange={(e) => onConfigChange("padding", parseInt(e.target.value))}
+              className="w-full accent-red-500"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function WidgetConfigPanel({
@@ -41,10 +148,13 @@ export default function WidgetConfigPanel({
     }
   };
 
+  const styleSection = <StyleConfigSection config={config} onConfigChange={onConfigChange} />;
+
   switch (widgetType) {
     case "image":
       return (
         <div className="space-y-2">
+          {styleSection}
           <label className="text-[10px] text-gray-500 uppercase">Image</label>
           {config.url ? (
             <div className="relative rounded-lg overflow-hidden border border-white/10">
@@ -115,6 +225,7 @@ export default function WidgetConfigPanel({
     case "custom-text":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">Text</label>
             <input
@@ -190,6 +301,7 @@ export default function WidgetConfigPanel({
     case "hunt-table":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">
               Font Size
@@ -237,6 +349,7 @@ export default function WidgetConfigPanel({
     case "current-game":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">
               Font Size
@@ -253,12 +366,15 @@ export default function WidgetConfigPanel({
           <ToggleOption label="Show Image" configKey="showImage" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Provider" configKey="showProvider" config={config} onChange={onConfigChange} />
           <ToggleOption label="Show Bet" configKey="showBet" config={config} onChange={onConfigChange} />
+          <ToggleOption label="Show Game Info" configKey="showInfo" config={config} onChange={onConfigChange} />
+          <ToggleOption label="Show Personal Record" configKey="showRecord" config={config} onChange={onConfigChange} />
         </div>
       );
 
     case "biggest-win":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">
               Font Size
@@ -279,6 +395,7 @@ export default function WidgetConfigPanel({
     case "running-totals":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">
               Font Size
@@ -311,6 +428,7 @@ export default function WidgetConfigPanel({
     case "progress-bar":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">
               Bar Color
@@ -340,6 +458,7 @@ export default function WidgetConfigPanel({
     case "leaderboard":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">Count</label>
             <input
@@ -376,6 +495,7 @@ export default function WidgetConfigPanel({
     case "timer":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">
               Font Size
@@ -412,6 +532,7 @@ export default function WidgetConfigPanel({
     case "game-image":
       return (
         <div className="space-y-2">
+          {styleSection}
           <div>
             <label className="text-[10px] text-gray-500 uppercase">Fit</label>
             <select

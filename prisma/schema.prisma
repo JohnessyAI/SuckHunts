@@ -124,7 +124,10 @@ model GameStat {
   totalWon          Decimal @default(0)
   biggestWin        Decimal @default(0)
   biggestMultiplier Decimal @default(0)
+  biggestWinBet     Decimal @default(0)
+  biggestMultiBet   Decimal @default(0)
   avgMultiplier     Decimal @default(0)
+  betSizeRecords    Json    @default("{}")
 
   @@unique([userId, gameSlug])
 }
