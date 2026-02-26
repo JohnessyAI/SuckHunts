@@ -68,13 +68,14 @@ export default function PublicViewerPage() {
   }
 
   const cur = hunt.currency || "USD";
-  const totalCost = parseFloat(hunt.totalCost);
-  const totalWon = parseFloat(hunt.totalWon);
+  const completedEntries = hunt.entries.filter((e) => e.status === "completed");
+  const completed = completedEntries.length;
+  const totalCost = completedEntries.reduce((s, e) => s + parseFloat(e.cost), 0);
+  const totalWon = completedEntries.reduce((s, e) => s + (e.result ? parseFloat(e.result) : 0), 0);
   const profit = totalWon - totalCost;
-  const completed = hunt.entries.filter((e) => e.status === "completed").length;
   const avgMultiplier =
     completed > 0
-      ? hunt.entries
+      ? completedEntries
           .filter((e) => e.multiplier)
           .reduce((s, e) => s + parseFloat(e.multiplier!), 0) / completed
       : 0;

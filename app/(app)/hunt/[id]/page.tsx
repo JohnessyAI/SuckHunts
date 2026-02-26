@@ -258,15 +258,15 @@ export default function HuntControlPanel() {
 
   const cur = hunt.currency || "USD";
   const sym = currencySymbol(cur);
-  const totalCost = parseFloat(hunt.totalCost);
-  const totalWon = parseFloat(hunt.totalWon);
-  const profit = totalWon - totalCost;
   const startBal = hunt.startBalance ? parseFloat(hunt.startBalance) : null;
-  const currentBalance = startBal != null ? startBal - totalCost + totalWon : null;
-  const completed = hunt.entries.filter((e) => e.status === "completed").length;
+  const completedEntries = hunt.entries.filter((e) => e.status === "completed");
+  const completed = completedEntries.length;
+  const totalCost = completedEntries.reduce((s, e) => s + parseFloat(e.cost), 0);
+  const totalWon = completedEntries.reduce((s, e) => s + (e.result ? parseFloat(e.result) : 0), 0);
+  const profit = totalWon - totalCost;
   const avgMultiplier =
     completed > 0
-      ? hunt.entries
+      ? completedEntries
           .filter((e) => e.multiplier)
           .reduce((s, e) => s + parseFloat(e.multiplier!), 0) / completed
       : 0;
@@ -322,7 +322,7 @@ export default function HuntControlPanel() {
               className="flex items-center gap-2 bg-gradient-to-r from-red-600 to-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:scale-105 transition-all shadow-lg shadow-red-500/25"
             >
               <Play size={14} />
-              Go Live
+              Start Hunt
             </button>
           )}
           {hunt.status === "live" && (
@@ -401,7 +401,7 @@ export default function HuntControlPanel() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
+          <div className="grid grid-cols-2 gap-4 mb-5">
             {/* Start Balance */}
             <div>
               <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
@@ -422,54 +422,6 @@ export default function HuntControlPanel() {
               </div>
               <p className="text-[10px] text-gray-600 mt-1">
                 Starting casino balance.
-              </p>
-            </div>
-
-            {/* Current Balance (computed, read-only) */}
-            <div>
-              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
-                Current Balance
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={currentBalance != null ? currentBalance.toFixed(2) : "—"}
-                  className="form-input pr-8 text-gray-400 cursor-default"
-                  readOnly
-                  tabIndex={-1}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-                  {sym}
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-600 mt-1">
-                Auto-calculated.
-              </p>
-            </div>
-
-            {/* End Balance (computed, read-only) */}
-            <div>
-              <label className="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">
-                End Balance
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={
-                    hunt.status === "completed" && currentBalance != null
-                      ? currentBalance.toFixed(2)
-                      : "—"
-                  }
-                  className="form-input pr-8 text-gray-400 cursor-default"
-                  readOnly
-                  tabIndex={-1}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">
-                  {sym}
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-600 mt-1">
-                Set when hunt ends.
               </p>
             </div>
 
@@ -516,10 +468,10 @@ export default function HuntControlPanel() {
         {startBal != null && (
           <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
             <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">
-              Balance
+              Start Balance
             </p>
-            <p className={`font-outfit text-lg font-bold ${currentBalance != null && currentBalance >= startBal ? "text-green-400" : "text-red-400"}`}>
-              {formatCurrency(currentBalance ?? 0, cur)}
+            <p className="font-outfit text-lg font-bold text-white">
+              {formatCurrency(startBal, cur)}
             </p>
           </div>
         )}
@@ -688,7 +640,11 @@ export default function HuntControlPanel() {
           {hunt.status !== "completed" && (
             <button
               onClick={() => setShowAdd(!showAdd)}
-              className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-400 transition-colors"
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                showAdd
+                  ? "bg-white/5 border border-white/10 text-gray-400 hover:text-white hover:bg-white/10"
+                  : "bg-gradient-to-r from-red-600 to-red-500 text-white hover:scale-105 shadow-lg shadow-red-500/25"
+              }`}
             >
               {showAdd ? <X size={14} /> : <Plus size={14} />}
               {showAdd ? "Cancel" : "Add Game"}
