@@ -390,9 +390,12 @@ export default function HuntControlPanel() {
           .filter((e) => e.multiplier)
           .reduce((s, e) => s + parseFloat(e.multiplier!), 0) / completed
       : 0;
-  // Required avg multiplier across all games to break even: startBalance / totalBetSizes
-  const reqAvgMulti = startBal != null && allBetTotal > 0
-    ? startBal / allBetTotal
+  // Required avg multiplier on remaining games to break even
+  const remainingEntries = hunt.entries.filter((e) => e.status !== "completed");
+  const remainingBetTotal = remainingEntries.reduce((s, e) => s + parseFloat(e.betSize), 0);
+  const amountStillNeeded = startBal != null ? startBal - totalWon : allBetTotal - totalWon;
+  const reqAvgMulti = remainingBetTotal > 0 && amountStillNeeded > 0
+    ? amountStillNeeded / remainingBetTotal
     : 0;
   const biggestWin = completedEntries.length > 0
     ? completedEntries.reduce((best, e) => {
