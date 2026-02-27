@@ -1,10 +1,35 @@
 "use client";
 
+import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [credError, setCredError] = useState("");
+  const [credLoading, setCredLoading] = useState(false);
+
+  async function handleCredentialLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setCredError("");
+    setCredLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      redirect: false,
+    });
+
+    if (result?.error) {
+      setCredError("Invalid email or password");
+    } else {
+      window.location.href = "/dashboard";
+    }
+    setCredLoading(false);
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center relative overflow-hidden">
       {/* Background orbs */}
@@ -73,6 +98,43 @@ export default function LoginPage() {
               Continue with Discord
             </button>
           </div>
+
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px bg-white/10" />
+            <span className="text-xs text-gray-500">or sign in with email</span>
+            <div className="flex-1 h-px bg-white/10" />
+          </div>
+
+          {/* Email/Password Form */}
+          <form onSubmit={handleCredentialLogin} className="space-y-3">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-sm text-white placeholder-gray-500 focus:border-red-500/50 focus:outline-none transition-colors"
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-sm text-white placeholder-gray-500 focus:border-red-500/50 focus:outline-none transition-colors"
+              required
+            />
+            {credError && (
+              <p className="text-xs text-red-400">{credError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={credLoading}
+              className="w-full px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-sm font-medium text-white transition-all disabled:opacity-50"
+            >
+              {credLoading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
 
           <p className="text-xs text-gray-600 text-center mt-8">
             By signing in, you agree to our{" "}

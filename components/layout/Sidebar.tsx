@@ -12,6 +12,7 @@ import {
   Shield,
   Lightbulb,
   Swords,
+  Users,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,18 @@ export default function Sidebar() {
             >
               <Shield size={18} />
               Admin
+            </Link>
+            <Link
+              href="/mods"
+              className={cn(
+                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all",
+                pathname.startsWith("/mods")
+                  ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                  : "text-gray-400 hover:text-white hover:bg-white/5"
+              )}
+            >
+              <Users size={18} />
+              Mods
             </Link>
           </>
         )}

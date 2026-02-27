@@ -11,6 +11,8 @@ const devSession: Session = {
     image: null,
     subscriptionTier: "pro",
     isAdmin: true,
+    isMod: false,
+    ownerIds: [],
     onboardingDone: true,
   },
   expires: "2099-01-01T00:00:00.000Z",

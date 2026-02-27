@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   getAuthSession,
+  getEffectiveUserId,
   unauthorized,
   notFound,
 } from "@/lib/auth-helpers";
@@ -15,8 +16,11 @@ export async function PATCH(
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
+
   const hunt = await prisma.hunt.findUnique({
-    where: { id: huntId, userId: session.user.id },
+    where: { id: huntId, userId },
   });
   if (!hunt) return notFound("Hunt not found");
 
@@ -54,7 +58,7 @@ export async function PATCH(
       data: { totalWon: { increment: diff } },
     });
 
-    // Auto-update GameStat (personal records)
+    // Auto-update GameStat (personal records) — attributed to the hunt owner
     if (entry.gameSlug) {
       const multiplier = entry.cost.toNumber() > 0 ? result / entry.cost.toNumber() : 0;
       const betSize = entry.betSize.toNumber();
@@ -62,7 +66,7 @@ export async function PATCH(
       const costNum = entry.cost.toNumber();
 
       const existing = await prisma.gameStat.findUnique({
-        where: { userId_gameSlug: { userId: session.user.id, gameSlug: entry.gameSlug } },
+        where: { userId_gameSlug: { userId, gameSlug: entry.gameSlug } },
       });
 
       if (existing) {
@@ -99,7 +103,7 @@ export async function PATCH(
       } else {
         await prisma.gameStat.create({
           data: {
-            userId: session.user.id,
+            userId,
             gameSlug: entry.gameSlug,
             gameName: entry.gameName,
             timesPlayed: 1,
@@ -145,15 +149,18 @@ export async function PATCH(
 
 // DELETE /api/hunts/[id]/entries/[eid] — remove entry from hunt
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string; eid: string }> }
 ) {
   const { id: huntId, eid } = await params;
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
+
   const hunt = await prisma.hunt.findUnique({
-    where: { id: huntId, userId: session.user.id },
+    where: { id: huntId, userId },
   });
   if (!hunt) return notFound("Hunt not found");
 

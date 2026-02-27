@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   getAuthSession,
+  getEffectiveUserId,
   unauthorized,
   notFound,
   badRequest,
@@ -16,8 +17,11 @@ export async function PUT(
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
+
   const hunt = await prisma.hunt.findUnique({
-    where: { id: huntId, userId: session.user.id },
+    where: { id: huntId, userId },
   });
   if (!hunt) return notFound("Hunt not found");
 

@@ -9,6 +9,8 @@ declare module "next-auth" {
       image?: string | null;
       subscriptionTier: string;
       isAdmin: boolean;
+      isMod: boolean;
+      ownerIds: string[];
       onboardingDone: boolean;
     };
   }
@@ -19,6 +21,8 @@ declare module "next-auth/jwt" {
     userId?: string;
     subscriptionTier?: string;
     isAdmin?: boolean;
+    isMod?: boolean;
+    ownerIds?: string[];
     onboardingDone?: boolean;
   }
 }

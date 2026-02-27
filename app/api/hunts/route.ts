@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthSession, unauthorized, badRequest } from "@/lib/auth-helpers";
+import { getAuthSession, getEffectiveUserId, unauthorized, badRequest } from "@/lib/auth-helpers";
 import { generateShareSlug } from "@/lib/utils/share-slug";
 import { checkFeature, HUNT_LIMITS, type SubscriptionTier } from "@/lib/features";
 
-// GET /api/hunts — list user's hunts
-export async function GET() {
+// GET /api/hunts — list user's hunts (or admin's hunts for mods)
+export async function GET(req: NextRequest) {
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
+
   const hunts = await prisma.hunt.findMany({
-    where: { userId: session.user.id },
+    where: { userId },
     include: { _count: { select: { entries: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -18,10 +21,13 @@ export async function GET() {
   return NextResponse.json(hunts);
 }
 
-// POST /api/hunts — create a new hunt
+// POST /api/hunts — create a new hunt (mods cannot create hunts)
 export async function POST(req: NextRequest) {
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
+
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
 
   const { title, description, startBalance, currency } = await req.json();
   if (!title?.trim()) return badRequest("Title is required");
@@ -32,7 +38,7 @@ export async function POST(req: NextRequest) {
 
   if (limit !== Infinity) {
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: { huntsThisMonth: true, huntsResetAt: true },
     });
 
@@ -42,7 +48,7 @@ export async function POST(req: NextRequest) {
       const resetAt = user.huntsResetAt;
       if (!resetAt || resetAt.getMonth() !== now.getMonth()) {
         await prisma.user.update({
-          where: { id: session.user.id },
+          where: { id: userId },
           data: { huntsThisMonth: 0, huntsResetAt: now },
         });
       } else if (user.huntsThisMonth >= limit) {
@@ -61,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   const hunt = await prisma.hunt.create({
     data: {
-      userId: session.user.id,
+      userId,
       title: title.trim(),
       shareSlug,
       ...(description && { description: description.trim() }),
@@ -72,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   // Increment monthly hunt counter
   await prisma.user.update({
-    where: { id: session.user.id },
+    where: { id: userId },
     data: { huntsThisMonth: { increment: 1 } },
   });
 

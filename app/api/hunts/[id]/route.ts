@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
   getAuthSession,
+  getEffectiveUserId,
   unauthorized,
   notFound,
   badRequest,
@@ -9,15 +10,18 @@ import {
 
 // GET /api/hunts/[id] — get a single hunt with entries
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
+
   const hunt = await prisma.hunt.findUnique({
-    where: { id, userId: session.user.id },
+    where: { id, userId },
     include: {
       entries: { orderBy: { position: "asc" } },
     },
@@ -37,8 +41,11 @@ export async function PATCH(
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
+
   const hunt = await prisma.hunt.findUnique({
-    where: { id, userId: session.user.id },
+    where: { id, userId },
   });
   if (!hunt) return notFound("Hunt not found");
 
@@ -58,9 +65,9 @@ export async function PATCH(
     }
     data.status = body.status;
     if (body.status === "live") {
-      // Deactivate all other live hunts for this user
+      // Deactivate all other live hunts for this owner
       await prisma.hunt.updateMany({
-        where: { userId: session.user.id, status: "live", id: { not: id } },
+        where: { userId, status: "live", id: { not: id } },
         data: { status: "completed", completedAt: new Date() },
       });
       if (!hunt.startedAt) {
@@ -83,15 +90,18 @@ export async function PATCH(
 
 // DELETE /api/hunts/[id] — delete a hunt
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
   const session = await getAuthSession();
   if (!session?.user?.id) return unauthorized();
 
+  const selectedOwnerId = req.headers.get("x-owner-id");
+  const userId = getEffectiveUserId(session.user, selectedOwnerId);
+
   const hunt = await prisma.hunt.findUnique({
-    where: { id, userId: session.user.id },
+    where: { id, userId },
   });
   if (!hunt) return notFound("Hunt not found");
 

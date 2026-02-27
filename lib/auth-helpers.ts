@@ -10,6 +10,8 @@ const DEV_SESSION = {
     image: null,
     subscriptionTier: "pro",
     isAdmin: true,
+    isMod: false,
+    ownerIds: [],
     onboardingDone: true,
   },
   expires: "2099-01-01T00:00:00.000Z",
@@ -21,6 +23,26 @@ export async function getAuthSession() {
     return DEV_SESSION;
   }
   return getServerSession(authOptions);
+}
+
+/**
+ * For mods, returns the ownerId they're acting on behalf of.
+ * For regular users/admins, returns their own id.
+ * Mods must pass selectedOwnerId when they have multiple owners.
+ */
+export function getEffectiveUserId(
+  user: { id: string; isMod: boolean; ownerIds: string[] },
+  selectedOwnerId?: string | null
+): string {
+  if (!user.isMod || user.ownerIds.length === 0) {
+    return user.id;
+  }
+  // If a specific owner is selected, validate it's in the list
+  if (selectedOwnerId && user.ownerIds.includes(selectedOwnerId)) {
+    return selectedOwnerId;
+  }
+  // Default to first owner
+  return user.ownerIds[0];
 }
 
 export function unauthorized() {
