@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Plus, Trophy, DollarSign, TrendingUp, Pencil, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
+import { useOwner } from "@/lib/owner-context";
+import { apiFetch } from "@/lib/api-fetch";
 
 interface Hunt {
   id: string;
@@ -20,21 +22,22 @@ interface Hunt {
 
 export default function DashboardPage() {
   const { data: session } = useSession();
+  const { selectedOwnerId } = useOwner();
   const [hunts, setHunts] = useState<Hunt[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/hunts")
+    apiFetch("/api/hunts", undefined, selectedOwnerId)
       .then((r) => r.json())
       .then(setHunts)
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedOwnerId]);
 
   async function handleDelete(huntId: string) {
     if (!confirm("Are you sure you want to delete this hunt? This cannot be undone.")) return;
     setDeleting(huntId);
-    const res = await fetch(`/api/hunts/${huntId}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/hunts/${huntId}`, { method: "DELETE" }, selectedOwnerId);
     if (res.ok) {
       setHunts((prev) => prev.filter((h) => h.id !== huntId));
     }

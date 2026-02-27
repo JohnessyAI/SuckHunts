@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { currencySymbol, SUPPORTED_CURRENCIES } from "@/lib/utils/format";
+import { useOwner } from "@/lib/owner-context";
+import { apiFetch } from "@/lib/api-fetch";
 
 export default function CreateHuntPage() {
   const router = useRouter();
+  const { selectedOwnerId } = useOwner();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [startBalance, setStartBalance] = useState("");
@@ -22,7 +25,7 @@ export default function CreateHuntPage() {
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/hunts", {
+    const res = await apiFetch("/api/hunts", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -31,7 +34,7 @@ export default function CreateHuntPage() {
         ...(startBalance && { startBalance: parseFloat(startBalance) }),
         currency,
       }),
-    });
+    }, selectedOwnerId);
 
     if (!res.ok) {
       const data = await res.json();

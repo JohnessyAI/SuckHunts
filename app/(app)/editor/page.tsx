@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Layers, Trash2, ExternalLink } from "lucide-react";
+import { useOwner } from "@/lib/owner-context";
+import { apiFetch } from "@/lib/api-fetch";
 
 interface OverlayProject {
   id: string;
@@ -16,27 +18,28 @@ interface OverlayProject {
 
 export default function EditorListPage() {
   const router = useRouter();
+  const { selectedOwnerId } = useOwner();
   const [projects, setProjects] = useState<OverlayProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
 
   useEffect(() => {
-    fetch("/api/overlays")
+    apiFetch("/api/overlays", undefined, selectedOwnerId)
       .then((r) => r.json())
       .then(setProjects)
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedOwnerId]);
 
   const createProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setCreating(true);
-    const res = await fetch("/api/overlays", {
+    const res = await apiFetch("/api/overlays", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
-    });
+    }, selectedOwnerId);
     if (res.ok) {
       const project = await res.json();
       router.push(`/editor/${project.id}`);
@@ -45,7 +48,7 @@ export default function EditorListPage() {
   };
 
   const deleteProject = async (id: string) => {
-    await fetch(`/api/overlays/${id}`, { method: "DELETE" });
+    await apiFetch(`/api/overlays/${id}`, { method: "DELETE" }, selectedOwnerId);
     setProjects((prev) => prev.filter((p) => p.id !== id));
   };
 

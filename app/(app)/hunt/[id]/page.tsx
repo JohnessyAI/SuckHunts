@@ -29,6 +29,8 @@ import {
   currencySymbol,
   SUPPORTED_CURRENCIES,
 } from "@/lib/utils/format";
+import { useOwner } from "@/lib/owner-context";
+import { apiFetch } from "@/lib/api-fetch";
 
 interface GameResult {
   slug: string;
@@ -75,6 +77,7 @@ type SortDirection = "asc" | "desc";
 export default function HuntControlPanel() {
   const params = useParams();
   const router = useRouter();
+  const { selectedOwnerId } = useOwner();
   const huntId = params.id as string;
 
   const [hunt, setHunt] = useState<Hunt | null>(null);
@@ -118,7 +121,7 @@ export default function HuntControlPanel() {
   const [discordSent, setDiscordSent] = useState(false);
 
   const fetchHunt = useCallback(async () => {
-    const res = await fetch(`/api/hunts/${huntId}`);
+    const res = await apiFetch(`/api/hunts/${huntId}`, undefined, selectedOwnerId);
     if (!res.ok) {
       router.push("/dashboard");
       return;
@@ -131,7 +134,7 @@ export default function HuntControlPanel() {
     setSettingsCurrency(data.currency || "USD");
     setSettingsWebhook(data.discordWebhook || "");
     setLoading(false);
-  }, [huntId, router]);
+  }, [huntId, router, selectedOwnerId]);
 
   useEffect(() => {
     fetchHunt();
@@ -146,7 +149,7 @@ export default function HuntControlPanel() {
       return;
     }
     debounceRef.current = setTimeout(async () => {
-      const res = await fetch(`/api/games/search?q=${encodeURIComponent(query)}&limit=8`);
+      const res = await apiFetch(`/api/games/search?q=${encodeURIComponent(query)}&limit=8`, undefined, selectedOwnerId);
       if (res.ok) {
         const results = await res.json();
         setSearchResults(results);
@@ -192,7 +195,7 @@ export default function HuntControlPanel() {
 
     const bet = parseFloat(betSize);
 
-    await fetch(`/api/hunts/${huntId}/entries`, {
+    await apiFetch(`/api/hunts/${huntId}/entries`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -203,7 +206,7 @@ export default function HuntControlPanel() {
         betSize: bet,
         cost: bet,
       }),
-    });
+    }, selectedOwnerId);
 
     setGameName("");
     setBetSize("");
@@ -215,11 +218,11 @@ export default function HuntControlPanel() {
 
   const recordResult = async (entryId: string) => {
     if (!resultValue) return;
-    await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
+    await apiFetch(`/api/hunts/${huntId}/entries/${entryId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ result: parseFloat(resultValue) }),
-    });
+    }, selectedOwnerId);
     const currentIndex = hunt?.entries.findIndex((e) => e.id === entryId) ?? -1;
     const nextEntry = hunt?.entries.slice(currentIndex + 1).find((e) => e.status !== "completed");
     setResultValue("");
@@ -232,9 +235,9 @@ export default function HuntControlPanel() {
   };
 
   const deleteEntry = async (entryId: string) => {
-    await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
+    await apiFetch(`/api/hunts/${huntId}/entries/${entryId}`, {
       method: "DELETE",
-    });
+    }, selectedOwnerId);
     fetchHunt();
   };
 
@@ -245,29 +248,29 @@ export default function HuntControlPanel() {
   };
 
   const resetResult = async (entryId: string) => {
-    await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
+    await apiFetch(`/api/hunts/${huntId}/entries/${entryId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ resetResult: true }),
-    });
+    }, selectedOwnerId);
     fetchHunt();
   };
 
   const saveNote = async (entryId: string, note: string) => {
-    await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
+    await apiFetch(`/api/hunts/${huntId}/entries/${entryId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ note: note.trim() }),
-    });
+    }, selectedOwnerId);
     fetchHunt();
   };
 
   const updateHuntStatus = async (status: string) => {
-    await fetch(`/api/hunts/${huntId}`, {
+    await apiFetch(`/api/hunts/${huntId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
-    });
+    }, selectedOwnerId);
     // Auto-focus first pending entry when starting the hunt
     if (status === "live" && hunt) {
       const firstPending = hunt.entries.find((e) => e.status !== "completed");
@@ -282,7 +285,7 @@ export default function HuntControlPanel() {
   const saveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingSettings(true);
-    await fetch(`/api/hunts/${huntId}`, {
+    await apiFetch(`/api/hunts/${huntId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -292,7 +295,7 @@ export default function HuntControlPanel() {
         currency: settingsCurrency,
         discordWebhook: settingsWebhook.trim() || null,
       }),
-    });
+    }, selectedOwnerId);
     setSavingSettings(false);
     setShowSettings(false);
     fetchHunt();
@@ -345,11 +348,11 @@ export default function HuntControlPanel() {
     setHunt((prev) =>
       prev ? { ...prev, entries: newOrder.map((e, i) => ({ ...e, position: i })) } : prev
     );
-    fetch(`/api/hunts/${huntId}/entries/reorder`, {
+    apiFetch(`/api/hunts/${huntId}/entries/reorder`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order: newOrder.map((e) => e.id) }),
-    });
+    }, selectedOwnerId);
   };
 
   // Discord webhook

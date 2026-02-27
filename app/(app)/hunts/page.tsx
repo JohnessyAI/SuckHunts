@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Pencil, Trash2, Power } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
+import { useOwner } from "@/lib/owner-context";
+import { apiFetch } from "@/lib/api-fetch";
 
 interface Hunt {
   id: string;
@@ -18,22 +20,23 @@ interface Hunt {
 }
 
 export default function HuntsPage() {
+  const { selectedOwnerId } = useOwner();
   const [hunts, setHunts] = useState<Hunt[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [toggling, setToggling] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/hunts")
+    apiFetch("/api/hunts", undefined, selectedOwnerId)
       .then((r) => r.json())
       .then(setHunts)
       .finally(() => setLoading(false));
-  }, []);
+  }, [selectedOwnerId]);
 
   async function handleDelete(huntId: string) {
     if (!confirm("Are you sure you want to delete this hunt? This cannot be undone.")) return;
     setDeleting(huntId);
-    const res = await fetch(`/api/hunts/${huntId}`, { method: "DELETE" });
+    const res = await apiFetch(`/api/hunts/${huntId}`, { method: "DELETE" }, selectedOwnerId);
     if (res.ok) {
       setHunts((prev) => prev.filter((h) => h.id !== huntId));
     }
@@ -43,11 +46,11 @@ export default function HuntsPage() {
   async function handleToggleActive(hunt: Hunt) {
     const newStatus = hunt.status === "live" ? "preparing" : "live";
     setToggling(hunt.id);
-    const res = await fetch(`/api/hunts/${hunt.id}`, {
+    const res = await apiFetch(`/api/hunts/${hunt.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
-    });
+    }, selectedOwnerId);
     if (res.ok) {
       // If activating, deactivate all others locally too
       setHunts((prev) =>

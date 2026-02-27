@@ -18,6 +18,8 @@ import {
 import { WIDGET_TYPES } from "@/lib/overlay/widget-registry";
 import WidgetRenderer, { type CurrentGameData } from "@/components/overlay-renderer/WidgetRenderer";
 import WidgetConfigPanel from "@/components/overlay-editor/WidgetConfigPanel";
+import { useOwner } from "@/lib/owner-context";
+import { apiFetch } from "@/lib/api-fetch";
 import { MOCK_HUNT_DATA } from "@/lib/overlay/mock-hunt-data";
 
 interface HuntData {
@@ -87,6 +89,7 @@ type ResizeEdge =
 export default function OverlayEditorPage() {
   const params = useParams();
   const router = useRouter();
+  const { selectedOwnerId } = useOwner();
   const projectId = params.projectId as string;
 
   const [project, setProject] = useState<Project | null>(null);
@@ -123,7 +126,7 @@ export default function OverlayEditorPage() {
 
   // Fetch latest hunt data for widget previews
   useEffect(() => {
-    fetch("/api/hunts/latest")
+    apiFetch("/api/hunts/latest", undefined, selectedOwnerId)
       .then((r) => (r.ok ? r.json() : null))
       .then((hunt) => {
         if (hunt) {
@@ -145,16 +148,16 @@ export default function OverlayEditorPage() {
             })),
           });
           // Also fetch enriched current game data
-          fetch(`/api/hunts/${hunt.id}/current-game`)
+          apiFetch(`/api/hunts/${hunt.id}/current-game`, undefined, selectedOwnerId)
             .then((r) => (r.ok ? r.json() : null))
             .then(setCurrentGameData);
         }
         setHuntDataLoaded(true);
       });
-  }, []);
+  }, [selectedOwnerId]);
 
   const fetchProject = useCallback(async () => {
-    const res = await fetch(`/api/overlays/${projectId}`);
+    const res = await apiFetch(`/api/overlays/${projectId}`, undefined, selectedOwnerId);
     if (!res.ok) {
       router.push("/editor");
       return;
@@ -167,7 +170,7 @@ export default function OverlayEditorPage() {
       setActiveSceneId(data.scenes[0].id);
     }
     setLoading(false);
-  }, [projectId, router, activeSceneId]);
+  }, [projectId, router, activeSceneId, selectedOwnerId]);
 
   useEffect(() => {
     fetchProject();
@@ -210,7 +213,7 @@ export default function OverlayEditorPage() {
   const addWidget = async (type: string) => {
     if (!activeSceneId) return;
     const def = WIDGET_TYPES.find((w) => w.type === type);
-    const res = await fetch(
+    const res = await apiFetch(
       `/api/overlays/${projectId}/scenes/${activeSceneId}/widgets`,
       {
         method: "POST",
@@ -222,7 +225,8 @@ export default function OverlayEditorPage() {
           height: def?.defaultHeight ?? 200,
           config: def?.defaultConfig ?? {},
         }),
-      }
+      },
+      selectedOwnerId
     );
     if (res.ok) {
       const widget = await res.json();
@@ -252,16 +256,17 @@ export default function OverlayEditorPage() {
           ),
         };
       });
-      fetch(
+      apiFetch(
         `/api/overlays/${projectId}/scenes/${activeSceneId}/widgets/${widgetId}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data),
-        }
+        },
+        selectedOwnerId
       );
     },
-    [activeSceneId, projectId]
+    [activeSceneId, projectId, selectedOwnerId]
   );
 
   // Delete widget
@@ -279,9 +284,10 @@ export default function OverlayEditorPage() {
       };
     });
     if (selectedWidgetId === widgetId) setSelectedWidgetId(null);
-    await fetch(
+    await apiFetch(
       `/api/overlays/${projectId}/scenes/${activeSceneId}/widgets/${widgetId}`,
-      { method: "DELETE" }
+      { method: "DELETE" },
+      selectedOwnerId
     );
   };
 
@@ -289,11 +295,11 @@ export default function OverlayEditorPage() {
   const addScene = async () => {
     const name = prompt("Scene name:");
     if (!name?.trim()) return;
-    const res = await fetch(`/api/overlays/${projectId}/scenes`, {
+    const res = await apiFetch(`/api/overlays/${projectId}/scenes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: name.trim() }),
-    });
+    }, selectedOwnerId);
     if (res.ok) {
       const scene = await res.json();
       setActiveSceneId(scene.id);
@@ -304,9 +310,9 @@ export default function OverlayEditorPage() {
 
   // Delete scene
   const deleteScene = async (sceneId: string) => {
-    await fetch(`/api/overlays/${projectId}/scenes/${sceneId}`, {
+    await apiFetch(`/api/overlays/${projectId}/scenes/${sceneId}`, {
       method: "DELETE",
-    });
+    }, selectedOwnerId);
     if (activeSceneId === sceneId) {
       setActiveSceneId(
         project?.scenes.find((s) => s.id !== sceneId)?.id ?? null
