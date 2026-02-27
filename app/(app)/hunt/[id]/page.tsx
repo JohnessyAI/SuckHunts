@@ -21,6 +21,7 @@ import {
   ArrowDown,
   GripVertical,
   Send,
+  RotateCcw,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -49,6 +50,7 @@ interface HuntEntry {
   cost: string;
   result: string | null;
   multiplier: string | null;
+  note: string | null;
   position: number;
   status: string;
 }
@@ -86,6 +88,8 @@ export default function HuntControlPanel() {
   const [settingsCurrency, setSettingsCurrency] = useState("USD");
   const [settingsWebhook, setSettingsWebhook] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Add entry form
   const [showAdd, setShowAdd] = useState(false);
@@ -230,6 +234,21 @@ export default function HuntControlPanel() {
   const deleteEntry = async (entryId: string) => {
     await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
       method: "DELETE",
+    });
+    fetchHunt();
+  };
+
+  const copyGameName = (entryId: string, name: string) => {
+    navigator.clipboard.writeText(name);
+    setCopiedId(entryId);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const resetResult = async (entryId: string) => {
+    await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resetResult: true }),
     });
     fetchHunt();
   };
@@ -455,7 +474,7 @@ export default function HuntControlPanel() {
             </span>
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {hunt.entries.length} games &middot; {completed} completed
+            {hunt.entries.length} games &middot; {completed} completed &middot; {hunt.entries.length - completed} left
             {hunt.description && (
               <span> &middot; {hunt.description}</span>
             )}
@@ -863,6 +882,9 @@ export default function HuntControlPanel() {
                       setResultValue={setResultValue}
                       recordResult={recordResult}
                       deleteEntry={deleteEntry}
+                      resetResult={resetResult}
+                      copyGameName={copyGameName}
+                      copiedId={copiedId}
                       huntStatus={hunt.status}
                       draggable
                     />
@@ -886,6 +908,9 @@ export default function HuntControlPanel() {
                     setResultValue={setResultValue}
                     recordResult={recordResult}
                     deleteEntry={deleteEntry}
+                    resetResult={resetResult}
+                    copyGameName={copyGameName}
+                    copiedId={copiedId}
                     huntStatus={hunt.status}
                     draggable={false}
                   />
@@ -982,6 +1007,9 @@ function EntryRow({
   setResultValue,
   recordResult,
   deleteEntry,
+  resetResult,
+  copyGameName,
+  copiedId,
   huntStatus,
   draggable,
 }: {
@@ -997,6 +1025,9 @@ function EntryRow({
   setResultValue: (v: string) => void;
   recordResult: (id: string) => void;
   deleteEntry: (id: string) => void;
+  resetResult: (id: string) => void;
+  copyGameName: (id: string, name: string) => void;
+  copiedId: string | null;
   huntStatus: string;
   draggable: boolean;
 }) {
@@ -1028,21 +1059,33 @@ function EntryRow({
 
       {/* Game */}
       <div className="py-3 pr-4">
-        <div
-          className="flex items-center gap-3 min-w-0 cursor-pointer group"
-          onClick={() => {
-            navigator.clipboard.writeText(entry.gameName);
-          }}
-          title="Click to copy game name"
-        >
-          {entry.gameImage && (
-            <img src={entry.gameImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 group-hover:ring-2 group-hover:ring-red-500/50 transition-all" />
-          )}
-          <div className="min-w-0">
-            <span className="text-white font-medium text-sm block truncate group-hover:text-red-400 transition-colors">{entry.gameName}</span>
-            {entry.gameProvider && (
-              <span className="text-[10px] text-gray-600 block">{entry.gameProvider}</span>
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className="flex items-center gap-3 min-w-0 cursor-pointer group flex-1"
+            onClick={() => copyGameName(entry.id, entry.gameName)}
+            title="Click to copy game name"
+          >
+            {entry.gameImage && (
+              <img src={entry.gameImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 group-hover:ring-2 group-hover:ring-red-500/50 transition-all" />
             )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-white font-medium text-sm truncate group-hover:text-red-400 transition-colors">{entry.gameName}</span>
+                {copiedId === entry.id ? (
+                  <span className="text-[10px] text-green-400 font-medium flex-shrink-0">Copied!</span>
+                ) : (
+                  <Copy size={10} className="text-gray-700 group-hover:text-red-400 flex-shrink-0 transition-colors" />
+                )}
+              </div>
+              <div className="flex items-center gap-1.5">
+                {entry.gameProvider && (
+                  <span className="text-[10px] text-gray-600">{entry.gameProvider}</span>
+                )}
+                {entry.note && (
+                  <span className="text-[10px] text-yellow-500/70 italic truncate">{entry.note}</span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1113,7 +1156,16 @@ function EntryRow({
 
       {/* Actions */}
       {showActions && (
-        <div className="px-4 py-3 text-right">
+        <div className="px-4 py-3 flex items-center justify-end gap-1">
+          {result !== null && (
+            <button
+              onClick={() => resetResult(entry.id)}
+              className="text-gray-700 hover:text-yellow-400 transition-colors"
+              title="Reset result"
+            >
+              <RotateCcw size={13} />
+            </button>
+          )}
           <button
             onClick={() => deleteEntry(entry.id)}
             className="text-gray-700 hover:text-red-400 transition-colors"

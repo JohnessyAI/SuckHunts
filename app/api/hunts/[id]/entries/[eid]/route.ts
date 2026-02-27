@@ -28,7 +28,19 @@ export async function PATCH(
   const body = await req.json();
   const data: Record<string, unknown> = {};
 
-  if (body.result !== undefined) {
+  if (body.resetResult === true) {
+    // Clear result and revert to pending
+    const oldResult = entry.result ? entry.result.toNumber() : 0;
+    data.result = null;
+    data.multiplier = null;
+    data.status = "pending";
+    if (oldResult > 0) {
+      await prisma.hunt.update({
+        where: { id: huntId },
+        data: { totalWon: { decrement: oldResult } },
+      });
+    }
+  } else if (body.result !== undefined) {
     const result = parseFloat(body.result);
     data.result = result;
     data.multiplier = entry.cost.toNumber() > 0 ? result / entry.cost.toNumber() : 0;
@@ -111,6 +123,7 @@ export async function PATCH(
     data.status = body.status;
   }
 
+  if (body.note !== undefined) data.note = body.note || null;
   if (body.betSize !== undefined) data.betSize = body.betSize;
   if (body.cost !== undefined) {
     const oldCost = entry.cost.toNumber();
