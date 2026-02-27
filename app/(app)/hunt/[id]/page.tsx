@@ -22,7 +22,6 @@ import {
   GripVertical,
   Send,
   RotateCcw,
-  MessageSquare,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -91,10 +90,6 @@ export default function HuntControlPanel() {
   const [savingSettings, setSavingSettings] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  // Note editing
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [noteValue, setNoteValue] = useState("");
 
   // Add entry form
   const [showAdd, setShowAdd] = useState(false);
@@ -258,19 +253,12 @@ export default function HuntControlPanel() {
     fetchHunt();
   };
 
-  const startEditNote = (entry: HuntEntry) => {
-    setEditingNoteId(entry.id);
-    setNoteValue(entry.note || "");
-  };
-
-  const saveNote = async (entryId: string) => {
+  const saveNote = async (entryId: string, note: string) => {
     await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ note: noteValue.trim() }),
+      body: JSON.stringify({ note: note.trim() }),
     });
-    setEditingNoteId(null);
-    setNoteValue("");
     fetchHunt();
   };
 
@@ -464,8 +452,8 @@ export default function HuntControlPanel() {
   const isDraggable = sortField === "position" && sortDirection === "asc";
   const showActions = hunt.status !== "completed";
   const gridCols = showActions
-    ? "grid-cols-[40px_1fr_96px_112px_80px_64px]"
-    : "grid-cols-[40px_1fr_96px_112px_80px]";
+    ? "grid-cols-[40px_1fr_180px_96px_112px_80px_64px]"
+    : "grid-cols-[40px_1fr_180px_96px_112px_80px]";
 
   return (
     <div>
@@ -845,6 +833,9 @@ export default function HuntControlPanel() {
               <div className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium py-2.5">
                 Game
               </div>
+              <div className="text-left text-[11px] text-gray-500 uppercase tracking-wider font-medium px-4 py-2.5">
+                Note
+              </div>
               <SortHeader label="Bet" field="bet" current={sortField} direction={sortDirection} onSort={handleSort} className="text-right px-4 py-2.5" />
               <SortHeader label="Won" field="won" current={sortField} direction={sortDirection} onSort={handleSort} className="text-right px-4 py-2.5" />
               <SortHeader label="Multi" field="multi" current={sortField} direction={sortDirection} onSort={handleSort} className="text-right px-4 py-2.5" />
@@ -867,6 +858,7 @@ export default function HuntControlPanel() {
                     </span>
                   </div>
                 </div>
+                <div className="px-4 py-2.5" />
                 <div className="px-4 py-2.5 text-right text-xs text-yellow-400/60">
                   {formatCurrency(biggestWin.bet, cur)}
                 </div>
@@ -907,12 +899,7 @@ export default function HuntControlPanel() {
                       copyGameName={copyGameName}
                       copiedId={copiedId}
                       huntStatus={hunt.status}
-                      editingNoteId={editingNoteId}
-                      noteValue={noteValue}
-                      setNoteValue={setNoteValue}
-                      startEditNote={startEditNote}
                       saveNote={saveNote}
-                      setEditingNoteId={setEditingNoteId}
                       draggable
                     />
                   </Reorder.Item>
@@ -939,12 +926,7 @@ export default function HuntControlPanel() {
                     copyGameName={copyGameName}
                     copiedId={copiedId}
                     huntStatus={hunt.status}
-                    editingNoteId={editingNoteId}
-                    noteValue={noteValue}
-                    setNoteValue={setNoteValue}
-                    startEditNote={startEditNote}
                     saveNote={saveNote}
-                    setEditingNoteId={setEditingNoteId}
                     draggable={false}
                   />
                 ))}
@@ -1044,12 +1026,7 @@ function EntryRow({
   copyGameName,
   copiedId,
   huntStatus,
-  editingNoteId,
-  noteValue,
-  setNoteValue,
-  startEditNote,
   saveNote,
-  setEditingNoteId,
   draggable,
 }: {
   entry: HuntEntry;
@@ -1068,14 +1045,12 @@ function EntryRow({
   copyGameName: (id: string, name: string) => void;
   copiedId: string | null;
   huntStatus: string;
-  editingNoteId: string | null;
-  noteValue: string;
-  setNoteValue: (v: string) => void;
-  startEditNote: (entry: HuntEntry) => void;
-  saveNote: (id: string) => void;
-  setEditingNoteId: (id: string | null) => void;
+  saveNote: (id: string, note: string) => void;
   draggable: boolean;
 }) {
+  const [localNote, setLocalNote] = useState(entry.note || "");
+  useEffect(() => { setLocalNote(entry.note || ""); }, [entry.note]);
+
   const cost = parseFloat(entry.cost);
   const result = entry.result !== null ? parseFloat(entry.result) : null;
   const multi = entry.multiplier ? parseFloat(entry.multiplier) : null;
@@ -1122,56 +1097,37 @@ function EntryRow({
                   <Copy size={10} className="text-gray-700 group-hover:text-red-400 flex-shrink-0 transition-colors" />
                 )}
               </div>
-              {editingNoteId === entry.id ? (
-                <form
-                  onSubmit={(e) => { e.preventDefault(); saveNote(entry.id); }}
-                  className="flex items-center gap-1.5 mt-0.5"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <input
-                    type="text"
-                    value={noteValue}
-                    onChange={(e) => setNoteValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        setEditingNoteId(null);
-                        setNoteValue("");
-                      }
-                    }}
-                    className="w-48 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white focus:border-yellow-500/50 focus:outline-none placeholder-gray-600"
-                    placeholder="Add a note..."
-                    autoFocus
-                  />
-                  <button type="submit" className="text-green-400 hover:text-green-300 text-[10px] font-medium">
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setEditingNoteId(null); setNoteValue(""); }}
-                    className="text-gray-500 hover:text-gray-300 text-[10px]"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  {entry.gameProvider && (
-                    <span className="text-[10px] text-gray-600">{entry.gameProvider}</span>
-                  )}
-                  {entry.note ? (
-                    <span
-                      className="text-[10px] text-yellow-500/70 italic truncate cursor-pointer hover:text-yellow-400 transition-colors"
-                      onClick={(e) => { e.stopPropagation(); startEditNote(entry); }}
-                      title="Click to edit note"
-                    >
-                      {entry.note}
-                    </span>
-                  ) : null}
-                </div>
+              {entry.gameProvider && (
+                <span className="text-[10px] text-gray-600">{entry.gameProvider}</span>
               )}
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Note */}
+      <div className="px-4 py-3">
+        <input
+          type="text"
+          value={localNote}
+          onChange={(e) => setLocalNote(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (localNote.trim() !== (entry.note || "")) {
+                saveNote(entry.id, localNote);
+              }
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+          onBlur={() => {
+            if (localNote.trim() !== (entry.note || "")) {
+              saveNote(entry.id, localNote);
+            }
+          }}
+          className="w-full bg-transparent border border-transparent rounded px-1.5 py-0.5 text-[11px] text-yellow-500/70 italic placeholder-gray-700 hover:border-white/10 focus:border-yellow-500/40 focus:bg-white/[0.03] focus:outline-none transition-all"
+          placeholder="Add note..."
+        />
       </div>
 
       {/* Bet */}
@@ -1241,13 +1197,6 @@ function EntryRow({
       {/* Actions */}
       {showActions && (
         <div className="px-4 py-3 flex items-center justify-end gap-1">
-          <button
-            onClick={() => startEditNote(entry)}
-            className={`transition-colors ${entry.note ? "text-yellow-500/60 hover:text-yellow-400" : "text-gray-700 hover:text-yellow-400"}`}
-            title={entry.note ? "Edit note" : "Add note"}
-          >
-            <MessageSquare size={13} />
-          </button>
           {result !== null && (
             <button
               onClick={() => resetResult(entry.id)}
