@@ -214,6 +214,10 @@ body::after {
   border-color: rgba(239, 68, 68, 0.5);
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
+select.form-input option {
+  background: #1a1a2e;
+  color: white;
+}
 
 /* Animated Gradient Text */
 .text-gradient-red {
