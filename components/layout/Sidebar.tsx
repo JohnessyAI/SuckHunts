@@ -11,12 +11,14 @@ import {
   Settings,
   Shield,
   Lightbulb,
+  Swords,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 const links = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/hunts", icon: Swords, label: "Hunts" },
   { href: "/hunt/new", icon: Plus, label: "New Hunt" },
   { href: "/stats", icon: BarChart3, label: "Statistics" },
   { href: "/editor", icon: Layers, label: "Overlays" },
