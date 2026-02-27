@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Plus, Trophy, DollarSign, TrendingUp, Clock } from "lucide-react";
+import { Plus, Trophy, DollarSign, TrendingUp, Pencil, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 
 interface Hunt {
@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [hunts, setHunts] = useState<Hunt[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/hunts")
@@ -28,6 +29,16 @@ export default function DashboardPage() {
       .then(setHunts)
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDelete(huntId: string) {
+    if (!confirm("Are you sure you want to delete this hunt? This cannot be undone.")) return;
+    setDeleting(huntId);
+    const res = await fetch(`/api/hunts/${huntId}`, { method: "DELETE" });
+    if (res.ok) {
+      setHunts((prev) => prev.filter((h) => h.id !== huntId));
+    }
+    setDeleting(null);
+  }
 
   const totalHunts = hunts.length;
   const totalSpent = hunts.reduce((s, h) => s + parseFloat(h.totalCost), 0);
@@ -109,12 +120,14 @@ export default function DashboardPage() {
             {hunts.slice(0, 10).map((hunt) => {
               const profit = parseFloat(hunt.totalWon) - parseFloat(hunt.totalCost);
               return (
-                <Link
+                <div
                   key={hunt.id}
-                  href={`/hunt/${hunt.id}`}
                   className="flex items-center justify-between px-5 py-4 hover:bg-white/[0.02] transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
+                  <Link
+                    href={`/hunt/${hunt.id}`}
+                    className="flex items-center gap-3 min-w-0 flex-1"
+                  >
                     <div
                       className={`w-2 h-2 rounded-full flex-shrink-0 ${
                         hunt.status === "live"
@@ -133,7 +146,7 @@ export default function DashboardPage() {
                         {new Date(hunt.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                  </div>
+                  </Link>
                   <div className="flex items-center gap-6 flex-shrink-0">
                     <div className="text-right">
                       <p className="text-xs text-gray-500">Cost</p>
@@ -163,8 +176,25 @@ export default function DashboardPage() {
                     >
                       {hunt.status}
                     </div>
+                    <div className="flex items-center gap-1 ml-2">
+                      <Link
+                        href={`/hunt/${hunt.id}`}
+                        className="p-1.5 rounded-md hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                        title="Edit hunt"
+                      >
+                        <Pencil size={14} />
+                      </Link>
+                      <button
+                        onClick={() => handleDelete(hunt.id)}
+                        disabled={deleting === hunt.id}
+                        className="p-1.5 rounded-md hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors disabled:opacity-50"
+                        title="Delete hunt"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
