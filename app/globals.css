@@ -204,6 +204,7 @@ body::after {
   color: white;
   font-size: 0.875rem;
   transition: all 0.3s;
+  color-scheme: dark;
 }
 .form-input::placeholder {
   color: rgba(255, 255, 255, 0.25);
