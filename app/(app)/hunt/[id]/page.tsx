@@ -22,6 +22,7 @@ import {
   GripVertical,
   Send,
   RotateCcw,
+  MessageSquare,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -90,6 +91,10 @@ export default function HuntControlPanel() {
   const [savingSettings, setSavingSettings] = useState(false);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Note editing
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteValue, setNoteValue] = useState("");
 
   // Add entry form
   const [showAdd, setShowAdd] = useState(false);
@@ -250,6 +255,22 @@ export default function HuntControlPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ resetResult: true }),
     });
+    fetchHunt();
+  };
+
+  const startEditNote = (entry: HuntEntry) => {
+    setEditingNoteId(entry.id);
+    setNoteValue(entry.note || "");
+  };
+
+  const saveNote = async (entryId: string) => {
+    await fetch(`/api/hunts/${huntId}/entries/${entryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: noteValue.trim() }),
+    });
+    setEditingNoteId(null);
+    setNoteValue("");
     fetchHunt();
   };
 
@@ -886,6 +907,12 @@ export default function HuntControlPanel() {
                       copyGameName={copyGameName}
                       copiedId={copiedId}
                       huntStatus={hunt.status}
+                      editingNoteId={editingNoteId}
+                      noteValue={noteValue}
+                      setNoteValue={setNoteValue}
+                      startEditNote={startEditNote}
+                      saveNote={saveNote}
+                      setEditingNoteId={setEditingNoteId}
                       draggable
                     />
                   </Reorder.Item>
@@ -912,6 +939,12 @@ export default function HuntControlPanel() {
                     copyGameName={copyGameName}
                     copiedId={copiedId}
                     huntStatus={hunt.status}
+                    editingNoteId={editingNoteId}
+                    noteValue={noteValue}
+                    setNoteValue={setNoteValue}
+                    startEditNote={startEditNote}
+                    saveNote={saveNote}
+                    setEditingNoteId={setEditingNoteId}
                     draggable={false}
                   />
                 ))}
@@ -1011,6 +1044,12 @@ function EntryRow({
   copyGameName,
   copiedId,
   huntStatus,
+  editingNoteId,
+  noteValue,
+  setNoteValue,
+  startEditNote,
+  saveNote,
+  setEditingNoteId,
   draggable,
 }: {
   entry: HuntEntry;
@@ -1029,6 +1068,12 @@ function EntryRow({
   copyGameName: (id: string, name: string) => void;
   copiedId: string | null;
   huntStatus: string;
+  editingNoteId: string | null;
+  noteValue: string;
+  setNoteValue: (v: string) => void;
+  startEditNote: (entry: HuntEntry) => void;
+  saveNote: (id: string) => void;
+  setEditingNoteId: (id: string | null) => void;
   draggable: boolean;
 }) {
   const cost = parseFloat(entry.cost);
@@ -1077,14 +1122,53 @@ function EntryRow({
                   <Copy size={10} className="text-gray-700 group-hover:text-red-400 flex-shrink-0 transition-colors" />
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
-                {entry.gameProvider && (
-                  <span className="text-[10px] text-gray-600">{entry.gameProvider}</span>
-                )}
-                {entry.note && (
-                  <span className="text-[10px] text-yellow-500/70 italic truncate">{entry.note}</span>
-                )}
-              </div>
+              {editingNoteId === entry.id ? (
+                <form
+                  onSubmit={(e) => { e.preventDefault(); saveNote(entry.id); }}
+                  className="flex items-center gap-1.5 mt-0.5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="text"
+                    value={noteValue}
+                    onChange={(e) => setNoteValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        setEditingNoteId(null);
+                        setNoteValue("");
+                      }
+                    }}
+                    className="w-48 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-[11px] text-white focus:border-yellow-500/50 focus:outline-none placeholder-gray-600"
+                    placeholder="Add a note..."
+                    autoFocus
+                  />
+                  <button type="submit" className="text-green-400 hover:text-green-300 text-[10px] font-medium">
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditingNoteId(null); setNoteValue(""); }}
+                    className="text-gray-500 hover:text-gray-300 text-[10px]"
+                  >
+                    Cancel
+                  </button>
+                </form>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  {entry.gameProvider && (
+                    <span className="text-[10px] text-gray-600">{entry.gameProvider}</span>
+                  )}
+                  {entry.note ? (
+                    <span
+                      className="text-[10px] text-yellow-500/70 italic truncate cursor-pointer hover:text-yellow-400 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); startEditNote(entry); }}
+                      title="Click to edit note"
+                    >
+                      {entry.note}
+                    </span>
+                  ) : null}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1157,6 +1241,13 @@ function EntryRow({
       {/* Actions */}
       {showActions && (
         <div className="px-4 py-3 flex items-center justify-end gap-1">
+          <button
+            onClick={() => startEditNote(entry)}
+            className={`transition-colors ${entry.note ? "text-yellow-500/60 hover:text-yellow-400" : "text-gray-700 hover:text-yellow-400"}`}
+            title={entry.note ? "Edit note" : "Add note"}
+          >
+            <MessageSquare size={13} />
+          </button>
           {result !== null && (
             <button
               onClick={() => resetResult(entry.id)}
