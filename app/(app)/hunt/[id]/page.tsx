@@ -660,11 +660,19 @@ export default function HuntControlPanel() {
           </p>
         </div>
         <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Req Avg X</p>
-          <p className={`font-outfit text-lg font-bold ${reqAvgMulti > 0 ? "text-orange-400" : "text-green-400"}`}>
-            {formatMultiplier(reqAvgMulti)}
+          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Avg Multi</p>
+          <p className="font-outfit text-lg font-bold text-yellow-400">
+            {formatMultiplier(avgMultiplier)}
           </p>
         </div>
+        {reqAvgMulti > 0 && (
+          <div className="glass-card rounded-lg p-3 border border-white/5 text-center">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Req Avg X</p>
+            <p className="font-outfit text-lg font-bold text-orange-400">
+              {formatMultiplier(reqAvgMulti)}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Add Game Form */}
