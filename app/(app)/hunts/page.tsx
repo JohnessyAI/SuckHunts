@@ -11,6 +11,7 @@ interface Hunt {
   status: string;
   totalCost: string;
   totalWon: string;
+  startBalance: string | null;
   shareSlug: string;
   createdAt: string;
   _count: { entries: number };
@@ -95,7 +96,8 @@ export default function HuntsPage() {
         ) : (
           <div className="divide-y divide-white/5">
             {hunts.map((hunt) => {
-              const profit = parseFloat(hunt.totalWon) - parseFloat(hunt.totalCost);
+              const spent = hunt.startBalance ? parseFloat(hunt.startBalance) : parseFloat(hunt.totalCost);
+              const profit = parseFloat(hunt.totalWon) - spent;
               const isLive = hunt.status === "live";
               return (
                 <div
@@ -138,7 +140,7 @@ export default function HuntsPage() {
                     <div className="text-right">
                       <p className="text-xs text-gray-500">Cost</p>
                       <p className="text-sm text-white">
-                        {formatCurrency(hunt.totalCost)}
+                        {formatCurrency(spent)}
                       </p>
                     </div>
                     <div className="text-right">

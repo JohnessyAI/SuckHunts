@@ -12,6 +12,7 @@ interface Hunt {
   status: string;
   totalCost: string;
   totalWon: string;
+  startBalance: string | null;
   shareSlug: string;
   createdAt: string;
   _count: { entries: number };
@@ -41,7 +42,7 @@ export default function DashboardPage() {
   }
 
   const totalHunts = hunts.length;
-  const totalSpent = hunts.reduce((s, h) => s + parseFloat(h.totalCost), 0);
+  const totalSpent = hunts.reduce((s, h) => s + (h.startBalance ? parseFloat(h.startBalance) : parseFloat(h.totalCost)), 0);
   const totalWon = hunts.reduce((s, h) => s + parseFloat(h.totalWon), 0);
   const profit = totalWon - totalSpent;
 
@@ -118,7 +119,8 @@ export default function DashboardPage() {
         ) : (
           <div className="divide-y divide-white/5">
             {hunts.slice(0, 10).map((hunt) => {
-              const profit = parseFloat(hunt.totalWon) - parseFloat(hunt.totalCost);
+              const spent = hunt.startBalance ? parseFloat(hunt.startBalance) : parseFloat(hunt.totalCost);
+              const profit = parseFloat(hunt.totalWon) - spent;
               return (
                 <div
                   key={hunt.id}
@@ -151,7 +153,7 @@ export default function DashboardPage() {
                     <div className="text-right">
                       <p className="text-xs text-gray-500">Cost</p>
                       <p className="text-sm text-white">
-                        {formatCurrency(hunt.totalCost)}
+                        {formatCurrency(spent)}
                       </p>
                     </div>
                     <div className="text-right">
