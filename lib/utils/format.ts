@@ -7,8 +7,7 @@ export function formatCurrency(
   const num = typeof value === "string" ? parseFloat(value) : value;
   if (CRYPTO_CODES.has(currency)) {
     const sym = currencySymbol(currency);
-    const decimals = ["DOGE", "XRP"].includes(currency) ? 2 : 8;
-    return `${sym}${num.toFixed(decimals)}`;
+    return `${sym}${num.toFixed(2)}`;
   }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
