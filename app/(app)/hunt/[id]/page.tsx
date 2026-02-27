@@ -240,6 +240,14 @@ export default function HuntControlPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    // Auto-focus first pending entry when starting the hunt
+    if (status === "live" && hunt) {
+      const firstPending = hunt.entries.find((e) => e.status !== "completed");
+      if (firstPending) {
+        setRecordingId(firstPending.id);
+        setResultValue("");
+      }
+    }
     fetchHunt();
   };
 
@@ -1020,12 +1028,18 @@ function EntryRow({
 
       {/* Game */}
       <div className="py-3 pr-4">
-        <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="flex items-center gap-3 min-w-0 cursor-pointer group"
+          onClick={() => {
+            navigator.clipboard.writeText(entry.gameName);
+          }}
+          title="Click to copy game name"
+        >
           {entry.gameImage && (
-            <img src={entry.gameImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+            <img src={entry.gameImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 group-hover:ring-2 group-hover:ring-red-500/50 transition-all" />
           )}
           <div className="min-w-0">
-            <span className="text-white font-medium text-sm block truncate">{entry.gameName}</span>
+            <span className="text-white font-medium text-sm block truncate group-hover:text-red-400 transition-colors">{entry.gameName}</span>
             {entry.gameProvider && (
               <span className="text-[10px] text-gray-600 block">{entry.gameProvider}</span>
             )}
