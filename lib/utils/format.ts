@@ -1,8 +1,15 @@
+const CRYPTO_CODES = new Set(["BTC", "ETH", "LTC", "DOGE", "SOL", "XRP", "USDT", "USDC"]);
+
 export function formatCurrency(
   value: number | string,
   currency: string = "USD"
 ): string {
   const num = typeof value === "string" ? parseFloat(value) : value;
+  if (CRYPTO_CODES.has(currency)) {
+    const sym = currencySymbol(currency);
+    const decimals = ["DOGE", "XRP"].includes(currency) ? 2 : 8;
+    return `${sym}${num.toFixed(decimals)}`;
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
@@ -28,6 +35,14 @@ export function currencySymbol(currency: string = "USD"): string {
     DKK: "kr",
     BRL: "R$",
     JPY: "¥",
+    BTC: "₿",
+    ETH: "Ξ",
+    LTC: "Ł",
+    DOGE: "Ð",
+    SOL: "◎",
+    XRP: "✕",
+    USDT: "₮",
+    USDC: "$",
   };
   return symbols[currency] || currency;
 }
@@ -43,4 +58,12 @@ export const SUPPORTED_CURRENCIES = [
   { code: "DKK", label: "kr - DKK" },
   { code: "BRL", label: "R$ - BRL" },
   { code: "JPY", label: "¥ - JPY" },
+  { code: "BTC", label: "₿ - BTC" },
+  { code: "ETH", label: "Ξ - ETH" },
+  { code: "LTC", label: "Ł - LTC" },
+  { code: "DOGE", label: "Ð - DOGE" },
+  { code: "SOL", label: "◎ - SOL" },
+  { code: "XRP", label: "✕ - XRP" },
+  { code: "USDT", label: "₮ - USDT" },
+  { code: "USDC", label: "$ - USDC" },
 ] as const;
