@@ -14,6 +14,8 @@ import {
   Swords,
   Users,
   ChevronDown,
+  MessageCircle,
+  Tv,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -162,6 +164,35 @@ export default function Sidebar() {
             </Link>
           </>
         )}
+
+        <div className="section-divider my-3" />
+        <p className="text-[10px] text-gray-600 uppercase tracking-wider font-medium px-3 mb-1.5">
+          Integrations
+        </p>
+        <Link
+          href="/integrations/discord"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all",
+            pathname.startsWith("/integrations/discord")
+              ? "bg-red-500/10 text-red-500 border border-red-500/20"
+              : "text-gray-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <MessageCircle size={18} />
+          Discord
+        </Link>
+        <Link
+          href="/integrations/kick"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all",
+            pathname.startsWith("/integrations/kick")
+              ? "bg-red-500/10 text-red-500 border border-red-500/20"
+              : "text-gray-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Tv size={18} />
+          Kick
+        </Link>
 
         <div className="section-divider my-3" />
         <a
